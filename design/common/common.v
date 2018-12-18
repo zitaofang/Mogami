@@ -4,12 +4,12 @@
 // Engineer: 
 // 
 // Create Date: 03/22/2018 05:30:43 PM
-// Design Name: 
+// Design Name: Mogami RISC-V CPU
 // Module Name: common
-// Project Name: 
+// Project Name: Mogami
 // Target Devices: 
 // Tool Versions: 
-// Description: 
+// Description: The library of all commonly used small components, like CSA and incrementer.
 // 
 // Dependencies: 
 // 
@@ -19,7 +19,8 @@
 // 
 //////////////////////////////////////////////////////////////////////////////////
 
-
+// Three-state buffer of arbitrary size. The built-in verilog three-state buffer only accept one
+// bit input.
 module control_buf #(parameter WIDTH = 64) (
     input [WIDTH - 1:0] in,
     output [WIDTH - 1:0] out,
@@ -34,6 +35,8 @@ module control_buf #(parameter WIDTH = 64) (
     endgenerate
 endmodule
 
+// A simple demultiplixer of arbitrary width. 
+// NOT USED
 module demux #(parameter CON_BIT = 1, parameter WIDTH = 64) (
     output [WIDTH * 2 ** CON_BIT - 1:0] out_bus,
     input [CON_BIT - 1:0] control,
@@ -86,6 +89,7 @@ module sbs #(parameter OUT_BIT = 6, parameter IS_MSBS = 1) (
     endgenerate
 endmodule
 
+// NOT USED
 // Clear high bits - clear all bits higher than the least significant 0
 // parameter POWER: specific the width as 2 ** POWER.
 // parameter SET: if SET == 1, set all bits higher/lower (see below) than the least/most significant
@@ -142,7 +146,7 @@ module clear_bit #(parameter POWER = 6, parameter SET = 1, parameter HIGHER = 1)
         begin: outer
             for (j = 0; j < 2 ** (POWER - 1 - i); j = j + 1)
             begin: inner
-                clear_bits_cell #(.POWER(i + 1), .SET(SET), .HIGHER(HIGHER)) (
+                clear_bits_cell #(.POWER(i + 1), .SET(SET), .HIGHER(HIGHER)) clr (
                     .in(int[i][2 ** (i + 1) * (j + 1) - 1:2 ** (i + 1) * j]),
                     .out(int[i + 1][2 ** (i + 1) * (j + 1) - 1:2 ** (i + 1) * j])
                 );
@@ -151,7 +155,7 @@ module clear_bit #(parameter POWER = 6, parameter SET = 1, parameter HIGHER = 1)
     endgenerate
 endmodule
 
-// reverse the index of a bus
+// reverse the index order of a bus. The leftmost bit will become rightmost bit after passing this.
 module index_reverser #(WIDTH = 64) (
     input [WIDTH - 1:0] in,
     output [WIDTH - 1:0] out
@@ -165,7 +169,7 @@ module index_reverser #(WIDTH = 64) (
     endgenerate
 endmodule
 
-// A fast adder for constant adding
+// A fast adder for constant adding. Used for counter/incrementer.
 module constant_1bit_adder #(parameter BIT = 64, parameter CONST_BIT = 0) (
     input [BIT - 1:0] a,
     output carry_out,
@@ -235,4 +239,42 @@ module canonic_adder #(parameter A_BIT = 64, parameter B_BIT = 1) (
     output [A_BIT - 1:0] res
 );
 
+endmodule
+
+// ============ CSA ==============
+// 3:2 CSA
+module csa #(parameter INPUT_SIZE = 128) (
+    input [INPUT_SIZE - 1:0] a,
+    input [INPUT_SIZE - 1:0] b,
+    input [INPUT_SIZE - 1:0] c,
+    input cin,
+    output [INPUT_SIZE:0] cout,
+    output [INPUT_SIZE:0] r
+);
+    assign r = {1'b0, a ^ b ^ c};
+    assign cout = {(a & b) | (a & c) | (b & c), cin};
+endmodule
+
+// 4:2 CSA
+// Note: in a multiplier, a 4:2 csa will never overflow. I didn't design the carry-out for the highest bit,
+// so they will be discard after passing this. If the highest carry-out is needed, make a wider 4:2 CSA.
+module csa4 #(parameter INPUT_SIZE = 64) (
+    input [INPUT_SIZE - 1:0] a,
+    input [INPUT_SIZE - 1:0] b,
+    input [INPUT_SIZE - 1:0] c,
+    input [INPUT_SIZE - 1:0] d,
+    // Note: cin[1] is connected to the cin of the first 3:2 CSA, and cin[0] is connected to the second 3:2 CSA
+    input [1:0] cin,
+    output [INPUT_SIZE - 1:0] r,
+    output [INPUT_SIZE - 1:0] cout
+);
+    wire [INPUT_SIZE:0] int1;
+    wire [INPUT_SIZE:0] int2;
+    wire [INPUT_SIZE:0] r_raw;
+    wire [INPUT_SIZE:0] cout_raw;
+    csa #(.INPUT_SIZE(INPUT_SIZE)) csa_1 (.a(a), .b(b), .c(c), .cin(cin[1]), .r(int1), .cout(int2));
+    csa #(.INPUT_SIZE(INPUT_SIZE)) csa_2 (.a(int1[INPUT_SIZE - 1:0]), .b(int2[INPUT_SIZE - 1:0]), .c(d), .cin(cin[0]), .r(r_raw), .cout(cout_raw));
+    // Throw away the highest bit
+    assign r = r_raw[INPUT_SIZE - 1:0];
+    assign cout = cout_raw[INPUT_SIZE - 1:0];
 endmodule
