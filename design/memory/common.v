@@ -34,3 +34,23 @@ module control_buf #(parameter WIDTH = 64) (
         end
     endgenerate
 endmodule
+
+// Clear all bits above the lowest set bit
+module clear_high_bits(
+    input [3:0] in,
+    output [3:0] out
+    );
+    wire [3:0] tmp0 = {in[3] & ~in[2], in[2], in[1] & ~in[0], in[0]};
+    wire [1:0] tmp1 = {in[3] | in[2], in[1] | in[0]};
+    assign out = {tmp0[3:2] & {2{~tmp1[0]}}, tmp0[1:0]};
+endmodule
+
+// Set all bits above the lowset set bit
+module set_high_bits(
+    input [3:0] in,
+    output [3:0] out
+    );
+    wire [3:0] tmp0 = {in[3] | in[2], in[2], in[1] | in[0], in[0]};
+    wire [1:0] tmp1 = {in[3] | in[2], in[1] | in[0]};
+    assign out = {tmp0[3:2] | {2{tmp1[0]}}, tmp0[1:0]};
+endmodule
