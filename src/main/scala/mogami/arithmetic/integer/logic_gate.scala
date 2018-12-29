@@ -16,7 +16,7 @@ class LogicGate extends Module {
   // and - 0
   // or - 1
   // xor - 2
-  // (reserved) - 3
+  // FP equal - 3
   // Sign bit inject (plain) - 4
   // Sign bit inject (negate) - 5
   // Sign bit inject (xor) - 6
@@ -33,7 +33,7 @@ class LogicGate extends Module {
   output_vec(1) := io.input.operand1 | io.input.operand2
   // xor
   output_vec(2) := io.input.operand1 ^ io.input.operand2
-  // Reserved - always 0
+  // fp equal
   output_vec(3) := 0.U
 
   // FP output Selector
