@@ -12,3 +12,11 @@ def reduce_mux (ctl: UInt, input: Array) =
   ((0 until log2Floor(ctl.getWidth)) foldLeft(input) (
     (ctl_b: UInt, input_slice: Array) => reduce_mux_slice(ctl_b, input_slice)
   ))
+
+// common type for carry-save data
+class CarrySave(width: Int) extends Bundle {
+  val s = UInt(width.W)
+  val c = UInt(width.W)
+}
+
+// The LUT table for the
