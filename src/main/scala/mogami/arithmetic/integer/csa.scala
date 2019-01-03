@@ -2,12 +2,23 @@ import chisel3._
 import chisel3.util._
 
 // The csa function, with one bit carry out on the left
-def csa(width: Int)(a: UInt, b: UInt, c: UInt): Tuple2[UInt, UInt] = {
+def csa(width: Int)(a: UInt, b: UInt, c: UInt, carry_in: Bool): Tuple2[UInt, UInt] = {
   val s = UInt((width + 1).W)
   val c = UInt((width + 1).W)
 
   s := Cat(false.B, a ^ b ^ c)
-  c := Cat((a & b) | (b & c) | (c & a), false.B)
+  c := Cat((a & b) | (b & c) | (c & a), carry_in)
+
+  (s, c)
+}
+
+// The half adder
+def ha(width: Int)(a: UInt, b: UInt, carry_in: Bool): Tuple2[UInt, UInt] = {
+  val s = UInt((width + 1).W)
+  val c = UInt((width + 1).W)
+
+  s := Cat(false.B, a ^ b)
+  c := Cat(a & b, carry_in)
 
   (s, c)
 }
@@ -16,8 +27,8 @@ def csa(width: Int)(a: UInt, b: UInt, c: UInt): Tuple2[UInt, UInt] = {
 // It is a Wallace Tree, but I will leave the width specification to
 // the optimizer.
 def csa_tree(width: Int)(in_arr: List): Tuple2[UInt, UInt] = {
-  // A simple array-to-tuple function
-  val to_tuple = (arr: List) => (case List(a, b, c, _*) => (a, b, c))
+  // A simple array-to-tuple function ("false" is the carry in, not used here)
+  val to_tuple = (arr: List) => (case List(a, b, c, _*) => (a, b, c, false.B))
   // The internal function for folding
   @scala.annotation.tailrec
   def csa_slice(from_right: Boolean, in_array: List) = {
