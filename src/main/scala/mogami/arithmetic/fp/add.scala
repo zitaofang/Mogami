@@ -3,8 +3,9 @@ package mogami.arithmetic.fp.fma
 import chisel3._
 import chisel3.util._
 
-// shift in FP Add
-class AddShifter(shamt_bit: Int) extends Module with ShifterBase {
+// shift in FP Add - 2 ** shamt_bit can be different from the width
+class AddShifter(shamt_bit: Int, input_width: Int)
+  extends Module with ShifterBase {
   val io = IO(new Bundle{
     val in = Input(UInt(160.W))
     val shamt = Input(UInt(7.W))
@@ -99,7 +100,7 @@ class StickyTree extends Module {
 }
 
 // The close path
-class ClosePath extends Module {
+class ClosePath extends Module with BaseComparator with BaseShifter {
   val io = IO(new Bundle{
     val in = Input(CarrySave(161))
     val negated = Input(CarrySave(161))
@@ -109,6 +110,19 @@ class ClosePath extends Module {
   })
 
   // Apply LZA to obtain the leading zero position
+  val shift = lza(io.in.s(160, 97), io.in.c(160, 97))
+  // While comparing the sum and carry
+  // Invert (not negate, there is no +1) the negative and compare,
+  // select io.in if the inverted negative operand is strictly less than
+  // the positive operand
+  // Note: there is only one negative operand (no overflow).
+  val width_exp = 8
+  def comp_op1 = Cat(Fill(161, io.in.s(160)) ^ io.in.s, 95)
+  def comp_op1 = Cat(Fill(161, io.in.c(160)) ^ io.in.c, 95)
+  val op_sel = Mux(io.in.s(160), lt, ~(lt & neq))
+  // Then select the correct number and shift
+
+  // The result will be sent to the sticky tree
 }
 
 // The exponent processing unit for FP Add
@@ -123,6 +137,20 @@ class ExpUnit extends Module {
     val sign_sel = Output(Bool) // True if matrix sign is selected
     val exp_diff = Output(UInt(12.W))
   })
+
+  // Comparator
+  val exp_abs_diff = Module(new AbsDiff(12))
+  exp_abs_diff.a := io.a
+  exp_abs_diff.b := io.m
+  // If they are equal, close path will overwrite the symbol
+  io.sign_sel := exp_abs_diff.lt
+  io.exp_diff := exp_abs_diff.out
+
+  // Close path selection
+  val cp = VecInit((-1 to 2) map (_.U(12.W) === exp_abs_diff.out)).orR
+  io.cp_sel := cp
+  io.exp_out := Mux(cp, cp_exp, Mux(exp_abs_diff.lt, io.m, io.a))
+    + adjusted.asUInt // Add 1 if adjusted
 }
 
 // The sign unit for FP Add

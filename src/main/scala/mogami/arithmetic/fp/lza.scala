@@ -9,29 +9,18 @@ import chisel3.util._
 //    IEEE, 2007.
 // See page 28 (Section 2.9) for more information.
 
-def lza(a_in: UInt, b_in: UInt, c_in: UInt) = {
-  // The comparison result will be used to select the result.
-  val res = Vec(2, UInt(6.W))
-  // The not yet encoded result.
-  val res_unencoded = Vec(2, UInt(64.W))
+def lza(a_in: UInt, b_in: UInt) = {
+  // Prepare
+  val t = io.a_in ^ io.b_in
+  val g = io.a_in & io.b_in
+  val z = ~io.a_in & ~io.b_in
 
-  // The paper need the two bits higher than the MSB to calculate
-  // indicators. Here is the augumented input with those two bits.
-  val a = Cat(0.U(2.W), a_in)
-  val b = Cat(0.U(2.W), b_in)
-  val c = Cat(0.U(2.W), c_in)
+  // Calculate
+  val raw_f = Wire(UInt(64.W))
+  raw_f := (t << 1) & (g & ~(z >> 1) | z & ~(g >> 1)) |
+    ~(t << 1) & (z & ~(z >> 1) | g & ~(g >> 1))
+  val f = Cat(raw_f(63, 1), ~t(0) & t(1))
 
-  // See the paper for their meaning.
-  val s = ~a & ~b & c
-  val e = (~a & ~b & ~c) | ((a ^ b) & c)
-  val t = a & b & ~c
-  val w = a ^ b ^ c
-  val x = (a & b) | ((a | b) & ~c)
-  res_unencoded(0) := (e & (t >> 1)) | (w & (e >> 1)) | ((w >> 1) & (x >> 2))(63, 0)
-  res_unencoded(1) := (s & ~(x >> 1)) | (~w & (t >> 1))(63, 0)
-
-  res(0) := PriorityEncoder(res_unencoded(0))
-  res(1) := PriorityEncoder(res_unencoded(1))
-
-  res
+  // Encode and return
+  PriorityEncoder(Reverse(f))
 }
