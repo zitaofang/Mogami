@@ -18,6 +18,14 @@ class CarrySave(width: Int) extends Bundle {
   val s = UInt(width.W)
   val c = UInt(width.W)
 }
+object CarrySave {
+  def apply(s: UInt, c: UInt) = {
+    val res = Wire(new CarrySave(s.getWidth))
+    res.s := s
+    res.c := c
+    res
+  }
+}
 
 // Calculating the absolute different
 class AbsDiff(width: Int) extends Module with BaseComparator {

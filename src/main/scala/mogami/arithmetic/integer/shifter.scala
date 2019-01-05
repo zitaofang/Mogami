@@ -15,7 +15,8 @@ class Shifter extends Module with BaseShifter {
   // Flag bit 1 indicate if it is arithmetic shift: 0 logical, 1 arithmetic.
   // It is the decoder's job to generate correct flag: "arithmetic left" shift
   // should not be passed to the shifter.
-  val shamt_bit = 6;
+  val shamt_bit = 6
+  val width = 64
   override def op = io.input.operand1
   override def shamt = io.input.operand2(5, 0)
   override def flags = io.input.flags(1, 0)
@@ -109,4 +110,30 @@ trait BaseShifter {
     ((op, false.B) /: ((shamt_bit - 1) to 0 by -1))// fold
     // Apply slice to the output of the previous slice
   )(r, i => ShiftSlice(i)(r))
+}
+
+// Shifter to be used in other module
+class ShifterBlock(shamt_bit: Int, width: Int) extends ShifterBase {
+  val io = IO(new Bundle{
+    val in = Input(UInt(width.W))
+    val shamt = Input(UInt(shamt_bit.W))
+    val out = Output(UInt(width.W))
+    val sticky = Output(Bool)
+  })
+
+  override def op = io.in
+  override def shamt = io.shamt
+  override def flags = io.input.flags(1, 0)
+
+  io.out := output
+  io.sticky := sticky
+}
+
+object ShifterBlock {
+  def apply(in: UInt, shamt: UInt) = {
+    val obj = Module(new ShifterBlock(shamt.getWidth, in.getWidth))
+    obj.io.in := in
+    obj.io.shamt := shamt
+    (io.out, io.sticky)
+  }
 }
