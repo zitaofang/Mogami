@@ -13,3 +13,13 @@ class RoundingBits extends Bundle {
   val round = Bool
   val sticky = Bool
 }
+
+// Extracting exponent from the internal representation.
+//
+object ExtractExp {
+  def apply(in: UInt, flag: UInt) = {
+    // Check the flag first: if the denorm bit is enabled,
+    // use the denorm value; otherwise, use the default exponent.
+    Mux(flag(1, 0).andR, Cat(16, 0))
+  }
+}

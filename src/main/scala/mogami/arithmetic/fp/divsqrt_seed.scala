@@ -42,10 +42,9 @@ class CoeffLUT extends BlackBox {
   })
 }
 
-// The component
-class DivSqrtSeed extends Module {
+// The Mantissa component
+class DivSqrtSeedMantissa extends Module {
   val io = IO(new Bundle{
-    val enable = Input(Bool)
     val is_sqrt = Input(Bool)
     val in = Input(UInt(52.W))
     val out_s = Output(UInt(30.W))
@@ -91,7 +90,69 @@ class DivSqrtSeed extends Module {
     "b1110".U(4.W)
   )
   val (c2_shamt, c1_shamt) = exp_table(Cat(io.is_sqrt, mem_out(63, 62)))
+  val c0_shamt = io.in(51, 43).orR.asUInt
 
   // Generate Unaligned, unshifted PP
+  val c2_pp = PPGenerate(mem_out(61, 50), sq_recode_out, sq_recode_cout)
+  val c1_pp = PPGenerate(mem_out(49, 30), x2_recode_out, x2_recode_cout)
+  val c0_pp = mem_out(29, 0)
+
+  // Propagation bit:
+  // In this matrix, there are always overflows from the
+  // matrix summations of c2 and c1. The c2 matrix will be negated
+  // at the last step, so the c1 overflow becomes a "hole". The bits
+  // below help propagate the c2 overflow to the c1 hole to correct
+  // the result.
+  // The propagate bits have three parts: the head aligned with c1 MSB,
+  // the body, and the tail aligned with c2 MSB.
+  val p_head = "b'11".U(2.W) >> c1_shamt
+
+  // Shift
+  // Here, the propagation tail is shifted in
+  val raw_pos_pp =
+    ((c2_pp zip (0 until 8)) map Cat(0.U(19.W),
+      ShifterBlock(_, c2_shamt, true.B, (_ == 7).B)._1,
+    0.U(7.U))) ++
+    Cat(ShifterBlock(c0_pp, c0_shamt, true.B, false.B)._1, 0.U(26.W))
+  val neg_pp =
+    (c1_pp map Cat(0.U(10.W), ShifterBlock(_, c1_shamt, true.B, false.B)._1))
+
+  // Add the propagation bit in
+  val pos_pp = raw_pos_pp.slice(0, 7) :+
+    Cat(0.U(10.W), p_head, "b'1111111".U(7.W), raw_pos_pp(7)(36, 0))
+
+  // Wallace tree
+  val (pos_s, pos_c) = csa_tree(56)(pos_pp)
+  val (neg_s, neg_c) = csa_tree(56)(neg_pp)
+  // Then, flip neg_s and _c and add them together
+  // Since I need two carry-ins to negate them, I manually set the csa as the
+  // csa_tree doesn't allow carry in
+  val (int_s, int_c) = csa(56)(pos_s, pos_c, ~neg_s, true.B)
+  val (res_s, res_c) = csa(56)(int_s(56, 0), int_c(56, 0), ~neg_c, true.B)
+
+  // Trim the result
+  (out_s, out_c) := (res_s(55, 26), res_c(55, 26))
+}
+
+// The component exposed to the pipeline
+// Note: flags[0] specify if it is sqrt or div (1 if sqrt)
+class DivSqrtSeed extends Module {
+  val io = IO(new Bundle() {
+    val in = Input(new FPPortIn())
+    val out = Output(new FPPortOut())
+  })
+
+  // Sign
+  val out_sign = io.in.operand1(63) ^ io.in.operand2(63)
+  // Exponent
+  // TODO implement this
+  val out_exp = 0
+
+  val core = Module(new DivSqrtSeedMantissa())
+  core.io.is_sqrt := io.in.flags(0)
+  core.io.in := Cat(true.B, io.in.operand2(51, 0))
+
+  // The output of this component has a special format - see the code below
+  // for more information.
   
 }

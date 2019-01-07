@@ -44,6 +44,7 @@ class FPPortOut extends FUPortOut {
 // Temporary documentation for FP extra encoding info:
 // Bit 0: enable bit. Default to 0 for all normal (normal, nonzero/-NaN...) FP.
 // Bit 1: denorm bit. If set, bit 2 to 7 are the shamt needed to normalize the FP.
+//  
 //  If not set, see the entries below.
 // Bit 2: zero bit. Set for zero (+/-).
 // Bit 3: infinity bit. Set for infinity (+/-).

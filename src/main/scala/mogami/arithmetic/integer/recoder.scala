@@ -3,9 +3,12 @@ import chisel3.util._
 
 // The 64 bits SD4 interface
 class SD4Port extends Module {
-  val sign = UInt(32.W)
-  val nonzero = UInt(32.W)
-  val shift = UInt(32.W)
+  val sign = Bool
+  val nonzero = Bool
+  val shift = Bool
+}
+object SD4Port {
+  def apply = new SD4Port()
 }
 
 // SD4 Recoder Core
@@ -21,11 +24,17 @@ class RecoderInPort extends Bundle {
   val r_1s = Bool
   val r_1m = Bool
 }
+object RecoderInPort{
+  def apply: new RecoderInPort()
+}
 class RecoderOutPort extends Bundle {
   val sign = Bool
   val m_2 = Bool
   val m_1 = Bool
   val m_0 = Bool
+}
+object RecoderOutPort {
+  def apply: new RecoderOutPort()
 }
 // The converter from Lyn and Matula's recoder output format
 // to the processor format
@@ -104,7 +113,7 @@ class SD4Recoder2C(width: Int) extends Module {
 
   val io = IO(new Bundle{
     val in = Input(UInt(width.W))
-    val out = Output(Vec(comp_num, SD4Port))
+    val out = Output(Vec(comp_num, new SD4Port(width)))
     val carry_out = Output(Bool)
   })
 
