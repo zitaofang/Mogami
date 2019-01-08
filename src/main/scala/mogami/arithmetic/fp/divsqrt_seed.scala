@@ -145,14 +145,27 @@ class DivSqrtSeed extends Module {
   // Sign
   val out_sign = io.in.operand1(63) ^ io.in.operand2(63)
   // Exponent
-  // TODO implement this
+  val op1_exp = ExtractExp(io.in.operand1, io.in.operand1_fp)
+  val op2_exp = ExtractExp(io.in.operand2, io.in.operand2_fp)
+  val div_exp = 0
+
   val out_exp = 0
+  // Special value
+  val fpflags_enable = 0
 
   val core = Module(new DivSqrtSeedMantissa())
   core.io.is_sqrt := io.in.flags(0)
   core.io.in := Cat(true.B, io.in.operand2(51, 0))
 
-  // The output of this component has a special format - see the code below
-  // for more information.
-  
+  // The output of this component has a special format.
+  // As I normalized "in" to the range of [1, 2), the range of seed output
+  // must be within (0.5, 1], which means the MSB of s and c cannot be
+  // both 1 (as it will result in an overflow).
+  // See below for the detail encoding.
+  io.out.output1(63, 59) := Cat(out_sign, out_exp(11, 8))
+  io.out.output1(58, 30) := core.io.out_s(28, 0)
+  io.out.output1(29) := core.io.out_c(29) | core.io.out_s(29)
+  io.out.output1(28, 0) := core.io.out_c(28, 0)
+  io.operand1_fp(0) := fpflags_enable
+
 }

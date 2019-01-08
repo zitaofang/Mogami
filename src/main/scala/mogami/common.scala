@@ -45,5 +45,13 @@ class AbsDiff(width: Int) extends Module with BaseComparator {
 
   // Subtracting
 }
+object AbsDiff {
+  def apply(a: UInt, b: UInt) = {
+    val core = Module(new AbsDiff(a.getWidth))
+    core.io.a := a
+    core.io.b := b
+    (core.io.lt, core.io.out)
+  }
+}
 
 // The LUT table for the

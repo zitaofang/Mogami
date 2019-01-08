@@ -1,0 +1,44 @@
+// sollya.sollya
+// This is a testing file used to verify the generation algorithm.
+
+c0_pre := 30;
+c1_pre := 20;
+c2_pre := 12;
+in_pre := 9;
+
+max_error := 0;
+for i from 0 to (2 ^ in_pre - 1) do {
+	current_value := 2 ^ (-in_pre) * i;
+	p1 := remez(1/(1 + current_value + x), 2, [0;2 ^ (-in_pre)]);
+	c1 := round(coeff(p1, 1), c1_pre, RN);
+	p2 := remez(1/(1 + current_value + sqrt(x)) - sqrt(x) * c1, 1, [0;(2 ^ (-in_pre))^2]);
+	c2 := round(coeff(p2, 1), c2_pre, RN);
+	p3 := remez(1/(1 + current_value + x) - c1 * x - c2 * x ^ 2, 0, [0;2 ^ (-in_pre)]);
+	c0 := round(coeff(p3, 0), c0_pre, RN);
+	err := dirtyinfnorm(1/(1 + current_value + x) - (c2 * x ^ 2 + c1 * x + c0), [0;2 ^ (-in_pre)]);
+	if (err > max_error) then max_error := err;
+};
+for i from 0 to (2 ^ in_pre - 1) do {
+	current_value := 2 ^ (-in_pre) * i;
+	p1 := remez(1/sqrt(1 + current_value + x), 2, [0;2 ^ (-in_pre)]);
+	c1 := round(coeff(p1, 1), c1_pre, RN);
+	p2 := remez(1/sqrt(1 + current_value + sqrt(x)) - sqrt(x) * c1, 1, [0;(2 ^ (-in_pre))^2]);
+	c2 := round(coeff(p2, 1), c2_pre, RN);
+	p3 := remez(1/sqrt(1 + current_value + x) - c1 * x - c2 * x ^ 2, 0, [0;2 ^ (-in_pre)]);
+	c0 := round(coeff(p3, 0), c0_pre, RN);
+	err := dirtyinfnorm(1/sqrt(1 + current_value + x) - (c2 * x ^ 2 + c1 * x + c0), [0;2 ^ (-in_pre)]);
+	if (err > max_error) then max_error := err;
+};
+for i from 0 to (2 ^ in_pre - 1) do {
+	current_value := 2 ^ (-in_pre) * i;
+	p1 := remez(1/sqrt(2*(1 + current_value + x)), 2, [0;2 ^ (-in_pre)]);
+	c1 := round(coeff(p1, 1), c1_pre, RN);
+	p2 := remez(1/sqrt(2*(1 + current_value + sqrt(x))) - sqrt(x) * c1, 1, [0;(2 ^ (-in_pre))^2]);
+	c2 := round(coeff(p2, 1), c2_pre, RN);
+	p3 := remez(1/sqrt(2*(1 + current_value + x)) - c1 * x - c2 * x ^ 2, 0, [0;2 ^ (-in_pre)]);
+	c0 := round(coeff(p3, 0), c0_pre, RN);
+	err := dirtyinfnorm(1/sqrt(2*(1 + current_value + x)) - (c2 * x ^ 2 + c1 * x + c0), [0;2 ^ (-in_pre)]);
+	if (err > max_error) then max_error := err;
+};
+
+print(max_error);
