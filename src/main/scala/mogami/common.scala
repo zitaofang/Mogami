@@ -27,31 +27,4 @@ object CarrySave {
   }
 }
 
-// Calculating the absolute different
-class AbsDiff(width: Int) extends Module with BaseComparator {
-  val io = IO(new Bundle{
-    val a = Input(UInt(width.W))
-    val b = Input(UInt(width.W))
-    val lt = Output(Bool)
-    val out = Output(UInt(width.W))
-  })
-
-  // Comparing
-  val width_exp = log2Ceil(width)
-  val padding = pow(2, width_exp).intValue - width
-  def comp_op1 = Cat(io.a, 0.U(padding.W))
-  def comp_op2 = Cat(io.b, 0.U(padding.W))
-  io.lt := lt
-
-  // Subtracting
-}
-object AbsDiff {
-  def apply(a: UInt, b: UInt) = {
-    val core = Module(new AbsDiff(a.getWidth))
-    core.io.a := a
-    core.io.b := b
-    (core.io.lt, core.io.out)
-  }
-}
-
 // The LUT table for the

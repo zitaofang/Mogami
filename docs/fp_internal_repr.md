@@ -19,13 +19,23 @@ Mogami tracks the denorm exponent (or, the *shamt* of mantissa when being conver
 The rest of the bit is used to classify the type of this number. These bit helps the component to identify special values without expensive reduce logic.
 
 * Bit 0 is the "enable" bit. If it is not set, this FP is a normal number, and all other bits (except Bit 2, see below) in the flag section are invalid.
-* Bit 1 is the "type" bit. It is valid only if Bit 0 is set, which is only true if the exponent field is all 0 or all 1. Most of the components will look at op[62], the MSB of the mantissa.
-  * If op[62] is cleared: 0 represents zero, and 1 represents denorms (which enabled Bits 7-2 for denorms).
-  * If op[62] is set: 0 represent inf, and 1 represents NaN. If this bit indicate that the number is a NaN:
-    * Bit 2 will be used as "Invalid NaN Boxing" bit used by single precision ops. See the paragraph below for more information.
-    * Bit 3 will be used as "Canonical NaN" bit for single precision FP. It is set if the value is an canonical NaN defined in the RISC-V standard.
+* Bit 1 is the "type" bit. Its value depends on whether Bit 0 is set or not.
+  * If Bit 0 is set: look at op[62] (double) / op[30] (single), the MSB of the exponent field:
+    * If it is cleared: 0 represents zero, and 1 represents denorms (which enabled Bits 7-2 (double) / Bits 7-3 (single) for denorms).
+    * If it is set: 0 represent inf, and 1 represents NaN.
+  * If Bit 0 is cleared, then this bit should be always set for single FP and cleared for double FP.
+* Bit 2 is used as "Invalid NaN Boxing" bit used by single precision ops. It should be set for all double FP except for denorms, and cleared for all single FP. See the paragraph below for more information.
+* Bit 3 is an auxiliary bit for the determination of single precision when the number is not a denorm. It should be set for all single FP and cleared for all double FP.
 
-NaN boxing, according to the standard, is used to prevent the error of feeding a double FP to a single FP operation, which is the only source of invalid NaN boxing error. Therefore, Bit 3 is always set for all double precision values except for denorms, regardless if "enable" bit is set. Conversely, all single precision value will have Bit 3 cleared. The single operation check if a value is not correctly boxed by checking if Bit 3 is set or op[62] is cleared (which represents a double precision denorm).
+### Regarding NaN Boxing
+
+NaN boxing, according to the standard, is used to prevent the error of feeding a double FP to a single FP operation, which is the only source of invalid NaN boxing error.
+
+Therefore, Bit 2 is always set for all double precision values except for denorms, regardless if "enable" bit is set. Conversely, all single precision value will have Bit 2 cleared. The single operation check if a value is not correctly boxed by checking if Bit 2 is set or op[62] is cleared (which represents a double precision denorm).
+
+Beside clearing bit 2, an single precision FP should always have bit 1 set if it is not a special value, and bit 3 set if it is not a denorm. This helps double precision operations detect a single precision number as NaN.
+
+See the source file, mogami/arithmetic/fp/fp_common.scala, for the detail of the NaN detecting algorithm.
 
 ## 3. Intermediate Value
 
