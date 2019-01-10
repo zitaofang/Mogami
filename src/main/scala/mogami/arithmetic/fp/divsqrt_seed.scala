@@ -192,30 +192,63 @@ class DivSqrtSeed extends Module {
     val out = Output(new FPPortOut())
   })
 
+  val sign1 = Mux(io.in.flags(1), io.in.operand1(63), io.in.operand1(31))
+  val sign2 = Mux(io.in.flags(1), io.in.operand2(63), io.in.operand2(31))
+
   // Sign
-  val out_sign = io.in.operand1(63) ^ io.in.operand2(63)
+  val out_sign = sign1 ^ sign2
   // Exponent
-  val op1_exp = ExtractExp(io.in.operand1, io.in.operand1_fp)
-  val op2_exp = ExtractExp(io.in.operand2, io.in.operand2_fp)
-  val div_exp = ExpSubtract(op1_exp, op2_exp)
-  val sqrt_exp = op1_exp >> 1
+  val op1_exp = ExtractExp(io.in.flags(1), io.in.operand1, io.in.operand1_fp)
+  val op2_exp = ExtractExp(io.in.flags(1), io.in.operand2, io.in.operand2_fp)
+  val (div_exp, _, div_uf) = ExpSubtract(op1_exp, op2_exp)
+  val sqrt_exp = (op1_exp.asSInt >> 1).asUInt
+  val sqrt_uf = (~op1_exp(11, 1).orR | op1_exp(11, 1).andR)
+
   val out_exp = Mux(io.in.flags(0), sqrt_exp, div_exp)
+  val exp_uf = Mux(io.in.flags(0), sqrt_uf, div_uf)
   // Special value, ordered by their priority: (D means DIV, S means SQRT)
-  // (D + S) If any operand is NaN, NaN. (exception if singling)
+  // (D + S) If any operand is NaN, NaN. Exception if signaling.
   // (S) If op1 is negative and zero, zero (negative).
   // ==================
-  // (D) If op2 is zero, exception.
-  // (S) If op1 is negative, exception.
+  // (D) If op2 is zero, inf. Exception if op1 is not inf.
+  // (S) If op1 is negative, NaN. Exception.
   // ==================
-  // (D) If op1 is infinity, and op2 is also infinity, exception.
+  // (D) If op1 is infinity, and op2 is also infinity, NaN. Exception.
   // (D) If op2 is infinity, zero.
   // ==================
   // (D + S) If op1 is zero, zero.
   // (D + S) If op1 is infinity, infinity.
   val nan1 = IsNaN(io.in.flags(1), io.in.operand1, io.in.operand1_fp)
   val nan2 = IsNaN(io.in.flags(1), io.in.operand2, io.in.operand2_fp)
+  val zero1 = IsZero(io.in.flags(1), io.in.operand1, io.in.operand1_fp)
+  val zero2 = IsZero(io.in.flags(1), io.in.operand2, io.in.operand2_fp)
+  val inf1 = IsInf(io.in.flags(1), io.in.operand1, io.in.operand1_fp)
+  val inf2 = IsInf(io.in.flags(1), io.in.operand2, io.in.operand2_fp)
+  val signaling1 = nan1 &
+    ~Mux(io.in.flags(1), io.in.operand1(51), io.in.operand1(22))
+  val signaling2 = nan2 &
+    ~Mux(io.in.flags(1), io.in.operand2(51), io.in.operand2(22))
+
+  // This field does not cover the case of signaling NaNs.
+  val invalid_op = (io.in.flags(0) & ~zero1 & sign1) | // sqrt(-x)
+    (~io.in.flags(0) & inf1 & inf2) // inf / inf.
+  val nan_generate = nan1 | nan2 | invalid_op
+  val inf_generate = ((zero2 & ~io.in.flags(0)) | // x / 0.
+    inf1 | of) & ~nan_generate
+  val zero_generate = ((zero1 & io.in.flags(0)) | // sqrt(0)
+    (inf2 & ~io.in.flags(0)) | uf) & ~nan_generate // 0 / x.
+
+  // Detect underflow after addition
   
 
+  // Exception detection
+  io.out.fflags(4) := invalid_op | signaling1 | signaling2 // NV
+  io.out.fflags(3) := zero2 & ~io.in.flags(0) & ~inf1 & ~inf2 // DV
+  io.out.fflags(2) := false.B // Not possible for DIV/SQRT
+  io.out.fflags(1) := uf
+  io.out.fflags(0) := 0 // Not known yet
+
+  // Encoding
   val flag_field_enable = 0
   val special_val_flags = 0
 

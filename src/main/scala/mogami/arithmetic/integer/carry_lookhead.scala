@@ -88,6 +88,7 @@ class CompoundAdder(level: Int) extends Module {
     val s1 = Output(UInt(input_width.W))
     val g = Output(Bool) // Global generate
     val p = Output(Bool) // Global propagate
+    val sign_c = Output(Vec(2, Bool)) // sign bit carry in, for overflow detection
   })
 
   // propagate, generate, and sum
@@ -137,6 +138,7 @@ class CompoundAdder(level: Int) extends Module {
   // Return
   (io.s0, io.s1) := (sel_res._1 ^ s, sel_res._2 ^ s)
   (io.g, io.p) := (g_out, p_out)
+  (io.sign_c(1), io.sign_c(0)) := (sel_res._1(63), sel_res._2(63))
 }
 
 // The regular lookahead adder, implemented with compound adder
@@ -149,6 +151,7 @@ class Adder(level: Int) extends Module {
     val cin = Input(Bool)
     val s = Output(UInt(input_width.W))
     val cout = Output(Bool)
+    val sign_c = Output(Bool)
   })
 
   val core = Module(new CompoundAdder(level))
@@ -156,4 +159,5 @@ class Adder(level: Int) extends Module {
   core.io.b := io.b
   io.s := Mux(cin, core.io.s1, core.io.s0)
   io.cout := core.io.g | core.io.p & io.cin
+  io.sign_c := Mux(cin, core.io.sign_c(1), core.io.sign_c(0))
 }

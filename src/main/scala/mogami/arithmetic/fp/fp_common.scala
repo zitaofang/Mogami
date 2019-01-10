@@ -12,6 +12,22 @@ object IsNaN {
   }
 }
 
+// Detect if a FP is a zero.
+object IsZero {
+  def apply(is_double: Bool, in: UInt, in_fp: UInt) = {
+    val exp_msb = Mux(is_double, in(62), in(30))
+    (in_fp(0) & ~in_fp(1) & ~exp_msb)
+  }
+}
+
+// Detect if a FP is an inf.
+object IsInf {
+  def apply(is_double: Bool, in: UInt, in_fp: UInt) = {
+    val exp_msb = Mux(is_double, in(62), in(30))
+    (in_fp(0) & in_fp(1) & ~exp_msb)
+  }
+}
+
 // The common data type for rounding bits
 class RoundingBits extends Bundle {
   val guard = Bool
@@ -19,13 +35,24 @@ class RoundingBits extends Bundle {
   val sticky = Bool
 }
 
-// Extracting exponent from the internal representation.
-//
+// Extracting exponent from the internal representation; 1 must be added to
+// its output to recover the original value.
+// This function always output in 2's complement format instead of biased.
 object ExtractExp {
-  def apply(in: UInt, flag: UInt) = {
-    // Check the flag first: if the denorm bit is enabled,
-    // use the denorm value; otherwise, use the default exponent.
-    Mux(flag(1, 0).andR, Cat(16, 0))
+  def apply(is_double: Bool, in: UInt, in_fp: UInt) = {
+    // Align it to 12-bit field so that denorms can be represented
+    val d_normal_2c = Cat(Fill(2, ~in(62)), in(61, 52))
+    val s_normal_2c = Cat(Fill(5, ~in(30)), in(29, 23))
+    val d_denorm_2c = Cat("b'111111".U(6.W), ~in_fp(7, 2))
+    val s_denorm_2c = Cat("b'1111111".U(7.W), ~in_fp(7, 3))
+
+    val exp_msb = Mux(is_double, in(62), in(30))
+    val is_denorm = in_fp(0) & in_fp(1) & ~exp_msb
+
+    Mux(is_denorm,
+      Mux(is_double, d_normal_2c, s_normal_2c),
+      Mux(is_double, d_denorm_2c, s_denorm_2c)
+    )
   }
 }
 
