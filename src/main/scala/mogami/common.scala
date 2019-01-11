@@ -27,4 +27,12 @@ object CarrySave {
   }
 }
 
+// Quick +1, Canonical adder
+object QuickPlusOne {
+  def apply(a: UInt, add: Bool) = {
+    val carry = (0 until a.getWidth) map (a(_, 0).andR & add)
+    a ^ Cat(carry)
+  }
+}
+
 // The LUT table for the

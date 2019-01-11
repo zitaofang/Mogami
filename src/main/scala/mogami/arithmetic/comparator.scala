@@ -64,8 +64,7 @@ class Comparator extends Module with BaseComparator {
     inverted_2(62, 0)
   )
 
-  def comp_op1 = swapped_1
-  def comp_op2 = swapped_2
+  val (lt, neq) = ComparatorBlock(swapped_1, swapped_2)
 
   // raw output
   val lt_or_le = lt | ~(neq & io.input.flags(0)) // make a table to understand this
@@ -90,28 +89,35 @@ class Comparator extends Module with BaseComparator {
   // Selection of min/max out:
 }
 
-// The basic unsigned comparator implementation
-trait BaseComparator {
-  val width_exp: Int
-  def comp_op1: UInt(pow(2, width_exp).intValue.W)
-  def comp_op2: UInt(pow(2, width_exp).intValue.W)
+// Warning: two operands must be of the same width, or the result
+// is undefined.
+object ComparatorBlock {
+  def apply(a: UInt, b: UInt) = {
+    val width = a.getWidth
+    val width_exp = log2Ceil(width)
+    val comp_width = pow(2, width_exp).intValue
+    val comp_op1 = Cat(a, 0.U((comp_width - width).W))
+    val comp_op2 = Cat(b, 0.U((comp_width - width).W))
 
-  val lt_bit = ~comp_op1 & comp_op2 // op1 is less than op2?
-  val neq_bit = comp_op1 ^ comp_op2 // op1 is not equal to op2?
-  val initial_in = (0 until 64) map ((i: Int) => (lt_bit(i), neq_bit(i)))
+    val lt_bit = ~comp_op1 & comp_op2 // op1 is less than op2?
+    val neq_bit = comp_op1 ^ comp_op2 // op1 is not equal to op2?
+    val initial_in = (0 until 64) map ((i: Int) => (lt_bit(i), neq_bit(i)))
 
-  // The cell of a comparator
-  def comparator_cell((lt_in1: Bool, neq_in1: Bool), (lt_in2: Bool, neq_in2: Bool)) =
-    {
-      val lt_out = Mux(neq_in2, lt_in2, lt_in1)
-      val neq_out = neq_in2
-      (lt_out, neq_out)
-    }
-  // The slice of a comparator
-  def comparator_slice(level: Int)(in: Array) =
-    (0 until pow(2, width_exp - 1 - level).intValue) map
-      ((i: Int) => comparator_cell(in(2 * i), in(2 * i + 1)))
-  // Start folding left from a tuple of lt_bit and neq_bit and apply slices to them
-  val (lt, neq) = (initial_in /: ((0 until width_exp) map comparator_slice(_)))
-    ((in, func) => func(in))
+    // The cell of a comparator
+    def comparator_cell((lt_in1: Bool, neq_in1: Bool), (lt_in2: Bool, neq_in2: Bool)) =
+      {
+        val lt_out = Mux(neq_in2, lt_in2, lt_in1)
+        val neq_out = neq_in2
+        (lt_out, neq_out)
+      }
+    // The slice of a comparator
+    def comparator_slice(level: Int)(in: Array) =
+      (0 until pow(2, width_exp - 1 - level).intValue) map
+        ((i: Int) => comparator_cell(in(2 * i), in(2 * i + 1)))
+
+    // Return
+    // Start folding left from a tuple of lt_bit and neq_bit and apply slices to them
+    (initial_in /: ((0 until width_exp) map comparator_slice(_)))
+      ((in, func) => func(in))
+  }
 }

@@ -200,12 +200,14 @@ class DivSqrtSeed extends Module {
   // Exponent
   val op1_exp = ExtractExp(io.in.flags(1), io.in.operand1, io.in.operand1_fp)
   val op2_exp = ExtractExp(io.in.flags(1), io.in.operand2, io.in.operand2_fp)
-  val (div_exp, _, div_uf) = ExpSubtract(op1_exp, op2_exp)
-  val sqrt_exp = (op1_exp.asSInt >> 1).asUInt
-  val sqrt_uf = (~op1_exp(11, 1).orR | op1_exp(11, 1).andR)
-
-  val out_exp = Mux(io.in.flags(0), sqrt_exp, div_exp)
-  val exp_uf = Mux(io.in.flags(0), sqrt_uf, div_uf)
+  val div_exp_core = Module(new ExpAdder())
+  div_exp_core.io.is_double := io.in.flags(1)
+  div_exp_core.io.subtract := true.B
+  div_exp_core.io.a := op1_exp
+  div_exp_core.io.b := op2_exp
+  val sqrt_exp_core = Module(new ExpDiv2())
+  sqrt_exp_core.io.in := op1_exp
+  val exp_res = Mux(io.in.flags(0), sqrt_exp_core.io.out, div_exp_core.io.out)
   // Special value, ordered by their priority: (D means DIV, S means SQRT)
   // (D + S) If any operand is NaN, NaN. Exception if signaling.
   // (S) If op1 is negative and zero, zero (negative).
@@ -234,12 +236,13 @@ class DivSqrtSeed extends Module {
     (~io.in.flags(0) & inf1 & inf2) // inf / inf.
   val nan_generate = nan1 | nan2 | invalid_op
   val inf_generate = ((zero2 & ~io.in.flags(0)) | // x / 0.
-    inf1 | of) & ~nan_generate
+    (~io.in.flags(0) & div_exp_core.io.of) | // Exponent-generated
+    inf1) & ~nan_generate // op1 = inf
   val zero_generate = ((zero1 & io.in.flags(0)) | // sqrt(0)
-    (inf2 & ~io.in.flags(0)) | uf) & ~nan_generate // 0 / x.
-
-  // Detect underflow after addition
-  
+    (~io.in.flags(0) & div_exp_core.io.uf) | // exponent_generated
+    (inf2 & ~io.in.flags(0))) & ~nan_generate // 0 / x.
+  val denorm_generate = div_exp_core.io.denorm & ~io.in.flags(0) &
+    ~nan_generate & ~inf_generate & ~zero_generate
 
   // Exception detection
   io.out.fflags(4) := invalid_op | signaling1 | signaling2 // NV
@@ -249,8 +252,12 @@ class DivSqrtSeed extends Module {
   io.out.fflags(0) := 0 // Not known yet
 
   // Encoding
-  val flag_field_enable = 0
-  val special_val_flags = 0
+
+  val flag_field_enable = nan_generate | inf_generate | zero_generate |
+    denorm_generate
+  val special_val_flags = Wire(UInt(7.W))
+  // Correspond to flags(1)
+  special_val_flags(0) :=
 
   val core = Module(new DivSqrtSeedMantissa())
   core.io.is_sqrt := io.in.flags(0)
