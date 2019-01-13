@@ -18,14 +18,14 @@ Mogami tracks the denorm exponent (or, the *shamt* of mantissa when being conver
 
 The rest of the bit is used to classify the type of this number. These bit helps the component to identify special values without expensive reduce logic.
 
-* Bit 0 is the "enable" bit. If it is not set, this FP is a normal number, and all other bits (except Bit 2, see below) in the flag section are invalid.
-* Bit 1 is the "type" bit. Its value depends on whether Bit 0 is set or not.
+* Bit 0 is the "ENABLE" bit. If it is not set, this FP is a normal number, and all other bits (except Bit 2, see below) in the flag section are invalid.
+* Bit 1 is the "TYPE" bit. Its value depends on whether Bit 0 is set or not.
   * If Bit 0 is set: look at op[62] (double) / op[30] (single), the MSB of the exponent field:
     * If it is cleared: 0 represents zero, and 1 represents denorms (which enabled Bits 7-2 (double) / Bits 7-3 (single) for denorms).
     * If it is set: 0 represent inf, and 1 represents NaN.
   * If Bit 0 is cleared, then this bit should be always set for single FP and cleared for double FP.
-* Bit 2 is used as "Invalid NaN Boxing" bit used by single precision ops. It should be set for all double FP except for denorms, and cleared for all single FP. See the paragraph below for more information.
-* Bit 3 is an auxiliary bit for the determination of single precision when the number is not a denorm. It should be set for all single FP and cleared for all double FP.
+* Bit 2 is used as "Invalid NaN Boxing" (INB) bit used by single precision ops. It should be set for all double FP except for denorms, and cleared for all single FP. See the paragraph below for more information.
+* Bit 3 is an auxiliary (AUX) bit for the determination of single precision when the number is not a denorm. It should be set for all single FP and cleared for all double FP.
 
 ### Regarding NaN Boxing
 

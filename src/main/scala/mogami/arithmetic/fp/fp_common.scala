@@ -55,3 +55,51 @@ object ExtractExp {
     )
   }
 }
+
+// Encoding exp format for computation into the internal format.
+// This component will handle overflow and underflow.
+object EncodeExp {
+  class Result extends Bundle {
+    val exp_field = UInt(11.W)
+    val flag_exp = UInt(6.W)
+    val overflow = Bool
+    val underflow = Bool
+    val denorm = Bool
+  }
+  def apply(is_double: Bool, in: UInt) = {
+    val res = new Result()
+
+    // Detect overflow, underflow and denorm generation
+    val bottom = Mux(is_double, -53.S(7.W).asUInt, -24.S(7.W).asUInt)
+    val (lower_uf, _) = ComparatorBlock(in(5, 0), bottom(5, 0))
+    // overflow if greater than 001111...11
+    res.overflow := ~in(11) & (in(10) | in(9, 1).andR)
+    // underflow if lower than -52 or -23
+    res.underflow := (~in(9, 6).andR | lower_uf) & in(11) & ~in(10)
+    res.denorm := in(11) & ((~in(10) & ~lower_uf) | ~in(9, 0).orR)
+
+    // Encoding exponent
+    res.exp_field := in(10, 0)
+      ^ Cat(true.B, Fill(2, is_double), 0.U(7.W)) // Filp sign
+      & Fill(11, ~(res.underflow & res.denorm)) // Clear all bits if underflow/denorm
+      | Fill(11, res.overflow) // Set all bits if overflow
+    res.flag_exp := ~in(5, 0) & Fill(6, res.denorm) | Cat(is_double, 0.U(5.W))
+  }
+}
+
+// Encoding flags according to regular encoder format.
+object EncodeFlags {
+  def apply(is_double: Bool, nan: Bool, inf: Bool, zero: Bool, denorm: Bool,
+    denorm_exp: UInt) = {
+      val denorm_exp_shifted =
+        Mux(is_double, denorm_exp, Cat(denorm_exp(4, 0), false.B))
+      val out = Wire(UInt(8.W))
+      val special_val = nan | inf | zero | denorm
+      out(0) := special_val
+      out(1) := denorm | nan | ~is_double & ~inf & ~zero
+      out(2) := Mux(denorm & is_double, denorm_exp_shifted(0), is_double)
+      out(3) := Mux(denorm, denorm_exp_shifted(1), ~is_double)
+      out(7, 4) := Fill(4, denorm) & denorm_exp(5, 2)
+      out
+    }
+}

@@ -14,9 +14,6 @@ class ExpAdder extends Module {
     val a = Input(UInt(12.W))
     val b = Input(UInt(12.W))
     val out = Output(UInt(12.W))
-    val of = Output(Bool)
-    val uf = Output(Bool)
-    val denorm = Output(Bool)
   })
 
   // Here, a 16-bit adder is used to add two exponent.
@@ -27,17 +24,13 @@ class ExpAdder extends Module {
   // At the same time, determine if a carry-in is needed.
   adder.io.cin := ~io.subtract
   val out = adder.io.s
-  io.out := out
 
   // Detect overflow, underflow and denorm generation
   val adder_overflow = adder.io.cout ^ adder.io.sign_c
-  val bottom = Mux(is_double, -53.S(7.W).asUInt, -24.S(7.W).asUInt)
-  val (lower_uf, _) = ComparatorBlock(out(5, 0), bottom(5, 0))
-  io.of := ~out(11) & (out(10) | out(9, 1).andR) | // greater than 001111...11
-    adder_overflow & out(11) // Arithmetic overflow to negative
-  io.denorm := out(11) & (~out(10) | ~out(9, 0).orR)
-  io.uf := (~out(9, 6).andR | lower_uf) & out(11) & ~out(10) | // lower than -52 or -23
-    adder_overflow & ~out(11) // Arithmetic overflow to positive
+  // If arithmetic overflow occurs, set bit 11 and 10 to notify
+  // encoding function of an overflow/underflow.
+  io.out := Cat(Mux(adder_overflow, Cat(~out(11), out(11)), out(11, 10)),
+    out(9, 0))
 }
 
 // Divided by 2: used by subtract
@@ -57,17 +50,24 @@ class ExpDiv2 extends Module {
 }
 
 // Calculating the absolute different of exponents
+// This exponent output |a-b|-1, so the shifter will need to shift a
+// extra bit.
+// It also output an "eq" signal to represent 0, which will be represented as
+// 11111111...1 in the output.
+// The client can just check bit 11 and 10 to see if it is overflow.
 class AbsDiff extends Module {
   val io = IO(new Bundle{
     val a = Input(UInt(12.W))
     val b = Input(UInt(12.W))
     val lt = Output(Bool)
+    val eq = Output(Bool)
     val out = Output(UInt(12.W))
   })
 
   // Comparing
-  val lt = ComparatorBlock(io.a, io.b)._1
+  val (lt, neq) = ComparatorBlock(io.a, io.b)
   io.lt := lt
+  io.eq := ~neq
 
   // Subtracting
   val adder = Module(new CompoundAdder())
@@ -75,11 +75,11 @@ class AbsDiff extends Module {
   adder.io.b = Cat(b, 0.U(4.W))
   io.out := Mux(lt, ~adder.io.s1, adder.io.s0)
 }
-object AbsDiff {
-  def apply(a: UInt, b: UInt) = {
-    val core = Module(new AbsDiff(a.getWidth))
-    core.io.a := a
-    core.io.b := b
-    (core.io.lt, core.io.out)
-  }
-}
+// object AbsDiff {
+//   def apply(a: UInt, b: UInt) = {
+//     val core = Module(new AbsDiff(a.getWidth))
+//     core.io.a := a
+//     core.io.b := b
+//     (core.io.lt, core.io.out)
+//   }
+// }

@@ -3,6 +3,29 @@ package mogami.arithmetic.fp.fma
 import chisel3._
 import chisel3.util._
 
+// The LZA module based on the following literature:
+// Quinnell, Eric, Earl E. Swartzlander, and Carl Lemonds.
+//    "Floating-point fused multiply-add architectures."
+//    In Signals, Systems and Computers, 2007. ACSSC 2007.
+//    Conference Record of the Forty-First Asilomar Conference on, pp. 331-337.
+//    IEEE, 2007.
+// See page 28 (Section 2.9) for more information.
+def lza(a_in: UInt, b_in: UInt) = {
+  // Prepare
+  val t = io.a_in ^ io.b_in
+  val g = io.a_in & io.b_in
+  val z = ~io.a_in & ~io.b_in
+
+  // Calculate
+  val raw_f = Wire(UInt(64.W))
+  raw_f := (t << 1) & (g & ~(z >> 1) | z & ~(g >> 1)) |
+    ~(t << 1) & (z & ~(z >> 1) | g & ~(g >> 1))
+  val f = Cat(raw_f(63, 1), ~t(0) & t(1))
+
+  // Encode and return
+  PriorityEncoder(Reverse(f))
+}
+
 // Shift and CSA stage
 class OPShiftCSA extends Module {
   val io = IO(new Bundle{
@@ -108,7 +131,7 @@ class ClosePath extends Module with BaseComparator {
   // The result will be sent to the sticky tree
   io.out := CarrySave(s_out, c_out)
   io.cp_exp_diff := shift
-  
+
 }
 
 // The exponent processing unit for FP Add
@@ -153,4 +176,69 @@ class SignUnit extends Module {
   // If close path is selected, use cp_sign; otherwise,
   // use the selection signal from the exponent unit to choose
   io.out := Mux(io.cp_sel, io.cp_sign, Mux(io.sign_sel, io.m, io.a))
+}
+
+// The integrated FP add.
+// It should be note that some inputs are expected to be one cycle late.
+class FPAdd extends Module {
+  val io = IO(new Bundle() {
+    val is_double = Input(Bool)
+
+    val m = Input(CarrySave(106)) // ONE CYCLE LATE
+    val m_exp = Input(UInt(12.W))
+    val m_sign = Input(Bool)
+    val m_flags = Input(UInt(4.W)) // One-hot flags: zero, denorm, inf, nan
+    val a = Input(UInt(53.W)) // ONE CYCLE LATE
+    val a_exp = Input(UInt(12.W))
+    val a_sign = Input(Bool)
+    val a_flags = Input(UInt(4.W))
+
+    val out = Output(CarrySave(55))
+    val sticky = Output(Bool)
+  })
+
+  // Calculate exponent
+  val exp_adder = Module(new AbsDiff())
+  exp_adder.io.a := m_exp
+  exp_adder.io.b := a_exp
+  val m_shift_en = RegNext(exp_adder.io.lt)
+  val out_of_range = RegNext(exp_adder.io.out(11, 7).orR)
+  val exp_diff = RegNext(exp_adder.io.out(6, 0))
+  val no_shift = RegNext(exp_adder.io.eq)
+  // Sign and plus/minus
+  val minus = RegNext(m_sign ^ a_sign)
+  val exp_based_sign = RegNext(Mux(exp_adder.io.lt, a_shift, m_shift))
+  // Close path selection
+  val cp = RegNext(
+    VecInit((-1 to 2) map (_.U(12.W) === exp_abs_diff.out)).orR |
+    m_sign ^ a_sign
+  )
+
+  // Special value handling rules:
+  // NaN + anything = NaN (IV if one is signaling)
+  // inf - inf = NaN (IV exception)
+  // inf + anything = inf
+  // zero + zero = zero
+  val invalid_op_wire = io.m_flags(2) & io.a_flags(2) & m_sign ^ a_sign
+  val nan_gen_wire =
+    io.m_flags(3) | io.a_flags(3) |
+    invalid_op_wire
+  val invalid_op = RegNext(invalid_op_wire)
+  val nan_gen = RegNext(nan_gen_wire)
+  val zero_gen = RegNext(io.m_flags(0) & io.a_flags(0))
+  val inf_gen = RegNext(
+    io.m_flags(2) | io.a_flags(2)
+    & ~invalid_op_wire
+  )
+
+  // ========= Stage ==========
+  // Starting processing mantissa
+  // Shift the operand to their places within 159 (=3 * 53) bits.
+  val m_shamt = exp_diff & Fill(7, m_shift_en)
+  val a_shamt = exp_diff & Fill(7, ~m_shift_en)
+  val (ms_out, ms_sticky) = ShifterBlock(Cat(io.m.s, 0.U(53.W)), m_shamt)
+  val (mc_out, mc_sticky) = ShifterBlock(Cat(io.m.c, 0.U(53.W)), m_shamt)
+  val (a_out, a_sticky) = ShifterBlock(Cat(io.a, 0.U(106.W)), a_shamt)
+
+  sticky := ms_sticky | mc_sticky | a_sticky
 }

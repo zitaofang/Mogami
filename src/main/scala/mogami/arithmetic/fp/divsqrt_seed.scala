@@ -192,11 +192,20 @@ class DivSqrtSeed extends Module {
     val out = Output(new FPPortOut())
   })
 
+  // Mantissa computation, takes 3 cycle
+  val core = Module(new DivSqrtSeedMantissa())
+  core.io.is_sqrt := io.in.flags(0)
+  core.io.sqrt_2 := io.in.
+  core.io.in := Cat(true.B, io.in.operand2(51, 0))
+
+  // Sign, exponent, and special value calculation
+  // ========= Stage 1 ===========
+
   val sign1 = Mux(io.in.flags(1), io.in.operand1(63), io.in.operand1(31))
   val sign2 = Mux(io.in.flags(1), io.in.operand2(63), io.in.operand2(31))
 
-  // Sign
-  val out_sign = sign1 ^ sign2
+  // Sign (Registered, going to stage 3)
+  val out_sign = RegNext(RegNext(sign1 ^ sign2))
   // Exponent
   val op1_exp = ExtractExp(io.in.flags(1), io.in.operand1, io.in.operand1_fp)
   val op2_exp = ExtractExp(io.in.flags(1), io.in.operand2, io.in.operand2_fp)
@@ -207,7 +216,8 @@ class DivSqrtSeed extends Module {
   div_exp_core.io.b := op2_exp
   val sqrt_exp_core = Module(new ExpDiv2())
   sqrt_exp_core.io.in := op1_exp
-  val exp_res = Mux(io.in.flags(0), sqrt_exp_core.io.out, div_exp_core.io.out)
+  val exp_res_wire = Mux(io.in.flags(0), sqrt_exp_core.io.out, div_exp_core.io.out)
+
   // Special value, ordered by their priority: (D means DIV, S means SQRT)
   // (D + S) If any operand is NaN, NaN. Exception if signaling.
   // (S) If op1 is negative and zero, zero (negative).
@@ -231,38 +241,50 @@ class DivSqrtSeed extends Module {
   val signaling2 = nan2 &
     ~Mux(io.in.flags(1), io.in.operand2(51), io.in.operand2(22))
 
+  // Special value generated from the rules above.
   // This field does not cover the case of signaling NaNs.
-  val invalid_op = (io.in.flags(0) & ~zero1 & sign1) | // sqrt(-x)
+  val invalid_op_wire = (io.in.flags(0) & ~zero1 & sign1) | // sqrt(-x)
     (~io.in.flags(0) & inf1 & inf2) // inf / inf.
-  val nan_generate = nan1 | nan2 | invalid_op
-  val inf_generate = ((zero2 & ~io.in.flags(0)) | // x / 0.
-    (~io.in.flags(0) & div_exp_core.io.of) | // Exponent-generated
-    inf1) & ~nan_generate // op1 = inf
-  val zero_generate = ((zero1 & io.in.flags(0)) | // sqrt(0)
-    (~io.in.flags(0) & div_exp_core.io.uf) | // exponent_generated
-    (inf2 & ~io.in.flags(0))) & ~nan_generate // 0 / x.
-  val denorm_generate = div_exp_core.io.denorm & ~io.in.flags(0) &
-    ~nan_generate & ~inf_generate & ~zero_generate
+  val nan_gen_wire = nan1 | nan2 | invalid_op
+  val inf_gen_wire = ((zero2 & ~io.in.flags(0)) | // x / 0.
+    inf1) & ~nan_gen_wire // op1 = inf
+  val zero_gen_wire = ((zero1 & io.in.flags(0)) | // sqrt(0)
+    (inf2 & ~io.in.flags(0))) & ~nan_gen_wire // 0 / x.
+  val nonexp_gen_wire = nan_gen_wire | inf_gen_wire | zero_gen_wire
+
+  // Register the result going to next stage
+  val invalid_op = RegNext(invalid_op_wire)
+  val nan_generate = RegNext(nan_gen_wire)
+  val inf_generate = RegNext(inf_gen_wire)
+  val zero_generate = RegNext(zero_gen_wire)
+  val nonexp_generate = RegNext(nonexp_gen_wire)
+  val exp_res = RegNext(exp_res_wire)
+
+  // =============== Stage 2 ===================
+
+  // Encode exponent
+  val encode_result = ExpEncode(exp_res)
+  val out_exp = RegNext(encode_result.exp_field)
+  // Encode flags
+  val flags_result = RegNext(EncodeExp(
+    io.in.flags(1),
+    nan_generate,
+    inf_generate | encode_result.overflow & ~nonexp_generate,
+    zero_generate | encode_result.underflow & ~nonexp_generate,
+    denorm_generate & ~nonexp_generate,
+    encode_result.flag_exp
+  ))
 
   // Exception detection
-  io.out.fflags(4) := invalid_op | signaling1 | signaling2 // NV
-  io.out.fflags(3) := zero2 & ~io.in.flags(0) & ~inf1 & ~inf2 // DV
-  io.out.fflags(2) := false.B // Not possible for DIV/SQRT
-  io.out.fflags(1) := uf
-  io.out.fflags(0) := 0 // Not known yet
+  val fflags_wire = Wire(UInt(5.W))
+  fflags_wire(4) := invalid_op | signaling1 | signaling2 // NV
+  fflags_wire(3) := zero2 & ~io.in.flags(0) & ~inf1 & ~inf2 // DV
+  fflags_wire(2) := encode_result.overflow // OF
+  fflags_wire(1) := encode_result.underflow // UF
+  fflags_wire(0) := false.B // Not known yet
+  val fflags = RegNext(fflags_wire)
 
-  // Encoding
-
-  val flag_field_enable = nan_generate | inf_generate | zero_generate |
-    denorm_generate
-  val special_val_flags = Wire(UInt(7.W))
-  // Correspond to flags(1)
-  special_val_flags(0) :=
-
-  val core = Module(new DivSqrtSeedMantissa())
-  core.io.is_sqrt := io.in.flags(0)
-  core.io.sqrt_2 := io.in.
-  core.io.in := Cat(true.B, io.in.operand2(51, 0))
+  // =============== Stage 3 ==============
 
   // The output of this component has a special format.
   // See the docs/fp_internal_repr.md for more information.
@@ -270,6 +292,14 @@ class DivSqrtSeed extends Module {
   io.out.output1(58, 30) := core.io.out_s(28, 0)
   io.out.output1(29) := core.io.out_c(29) | core.io.out_s(29)
   io.out.output1(28, 0) := core.io.out_c(28, 0)
-  io.operand1_fp(0) := fpflags_enable
-  io.operand1_fp(7, 1) := Mux(fpflags_enable, special_val_flags, out_exp(6, 0))
+  io.out.output1_fp(0) := flags_result(0)
+  io.out.output1_fp(7, 1) := Mux(flags_result(0), flags_result(7, 1), out_exp(6, 0))
+  io.out.fflags := fflags
+
+  // Set other output
+  io.out.output1_en := RegNext(RegNext(io.out.enable))
+  io.out.output2 := 0.U(64.W)
+  io.out.output2_en := false.B
+  io.out.busy := false.B  // It is pipelined, so this will never block
+  io.out.output2_fp := 0.U(8.W)
 }
