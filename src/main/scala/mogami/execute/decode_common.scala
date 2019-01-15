@@ -8,3 +8,12 @@ class DecodeOperand extends Bundle {
   val data = UInt(64.W)
   val present = Bool
 }
+
+object DecodeOperand {
+  def apply(data: UInt, present: Bool) = {
+    val res = new DecodeOperand()
+    res.data := data
+    res.present := present
+    res
+  }
+}
