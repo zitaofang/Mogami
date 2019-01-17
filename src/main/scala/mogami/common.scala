@@ -1,3 +1,5 @@
+package mogami
+
 import chisel3._
 import chisel3.util._
 
@@ -35,6 +37,33 @@ object QuickPlusOne {
     val carry = (0 until a.getWidth) map (a(_, 0).andR & add)
     a ^ Cat(carry)
   }
+}
+
+// Quick +1 or -1 implemented with QuickPlusOne
+object QuickIncrementer {
+  def apply(a: UInt, enable: Bool, decrement: Bool) = {
+    val width = a.getWidth
+    QuickPlusOne(Fill(width, decrement) ^ a) ^ Fill(width, decrement)
+  }
+}
+
+// The memory read port (only used for synchronized read)
+class MemReadIO[T <: Data](addr_w: Int, data_type: T) extends Bundle {
+  val addr = Flipped(Valid(UInt(addr_w.W)))
+  val data = Output(data_type)
+}
+object MemReadIO {
+  def apply[T <: Data](addr_w: Int, data_type: T) =
+    new MemReadIO(addr_w, data_type)
+}
+
+// The memory write port
+class MemWriteIO(addr_w: Int, data_w: Int) extends Bundle {
+  val addr = UInt(addr_w.W)
+  val data = UInt(data_w.W)
+}
+object MemWriteIO {
+  def apply(addr_w: Int, data_w: Int) = Valid(new MemWriteIO(addr_w, data_w))
 }
 
 // The LUT table for the

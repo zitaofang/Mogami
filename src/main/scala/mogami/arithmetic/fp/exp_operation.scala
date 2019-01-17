@@ -22,6 +22,8 @@ class ExpAdder extends Module {
   adder.io.b := Cat(io.b ^ Fill(12, io.subtract), 0.U(4.W))
 
   // At the same time, determine if a carry-in is needed.
+  // A carry-in is needed for addition (a + b - 1 = a - 1 + b - 1 + 1)
+  // but not required for subtraction (a - b - 1 = a - 1 + ~(b - 1))
   adder.io.cin := ~io.subtract
   val out = adder.io.s
 

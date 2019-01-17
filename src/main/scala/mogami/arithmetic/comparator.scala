@@ -91,6 +91,7 @@ class Comparator extends Module with BaseComparator {
 
 // Warning: two operands must be of the same width, or the result
 // is undefined.
+// It returns a (lt, neq) pair.
 object ComparatorBlock {
   def apply(a: UInt, b: UInt) = {
     val width = a.getWidth
