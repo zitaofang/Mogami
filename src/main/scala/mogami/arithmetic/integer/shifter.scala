@@ -2,32 +2,52 @@ import chisel3._
 import chisel3.util._
 import scala.math.pow
 
-class Shifter extends Module with BaseShifter {
+class Shifter extends Module {
   val io = IO(new Bundle{
     val input = Input(FUPortIn)
     val output = Output(FUPortOut)
   })
 
-  // Input specs:
-  // Operand1 is the target of the shift operation, and Operand2 is the shamt.
-  // This component only use the lower 6 bits and ignore the higher bits.
-  // Flag bit 0 indicate the direction: 0 to the left, 1 to the right.
-  // Flag bit 1 indicate if this is an arithmetic shift (1 if it is).
-  //  - this flag has no effect if it is a left shift.
-  val shamt_bit = 6
-  val width = 64
-  override def op = io.input.operand1
-  override def shamt = io.input.operand2(5, 0)
-  override def to_right = io.input.flags(0)
-  override def shift_in = io.input.flags(1) & io.input.operand1(63)
+  // Implement the shifter
+  class Slice(level: Int, in: SlicePort[Bool], shift: Bool)
+  extends ShifterSlice[Bool] {
+    override def left_in_ctr = io.input.flags(1) & io.input.operand1(63)
+    override def right_in_ctr = false.B
+    override def block_size = math.pow(2, level).toInt
+    override def to_right = io.input.flags(0)
+    override def mux_func = Mux(_, _, _)
+  }
+  val slice = (level: Int) => (in: SlicePort[Bool]) =>
+    new Slice(level, in, io.input.operand2(level)).result
+  val tree = (0 until 6) map slice(_)
 
-  io.output.output1 := output
-
-  // Pull the rest of the output
+  io.output.output1 :=
+    (new SliceSimplePort(io.input.operand1.toBools) /: tree)
+    (a, f => f(a)).data
   io.output.output1_en := io.input.enable
   io.output.output2 := 0.U
   io.output.output2_en := false.B
   io.output.busy := false.B
+}
+
+// Simple shifter to the right (not unaligned)
+object SimpleShifter {
+  class Slice(level: Int, in: SlicePort[Bool], shift: Bool)
+  extends ShifterSlice[Bool] {
+    override def left_in_ctr = false.B
+    override def right_in_ctr = false.B
+    override def block_size = math.pow(2, level).toInt
+    override def to_right = true.B
+    override def mux_func = Mux(_, _, _)
+  }
+
+  def apply(input: UInt, shamt: UInt) => {
+    val slice = (level: Int) => (in: SlicePort[Bool]) =>
+      new Slice(level, in, shamt(level)).result
+    val tree = (0 until shamt.getWidth) map slice(_)
+
+    (new SliceSimplePort(input) /: tree)(a, f => f(a)).data
+  }
 }
 
 // The implementation of shifter

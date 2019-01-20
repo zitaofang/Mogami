@@ -98,6 +98,22 @@ class ROBBank(num: Int) extends Module {
   io.commit.valid := ~empty & completion_bits(tail)
 }
 
+// The ROB rotator
+object ROBRotator {
+  class Slice(level: Int, in: SlicePort[ROBLine], shift: Bool)
+  extends RotatorSlice[ROBLine] {
+    override def mux_func = Mux(_, _, _)
+    override def block_size = math.pow(2, level).intValue
+    override def to_right = false.B
+  }
+  def apply(in: Seq[ROBLine], shamt: UInt) = {
+    val slice = (level: Int) => (in: SlicePort[ROBLine]) =>
+      new Slice(level, in, shamt(level)).result
+    val tree = (0 until 2) map slice(_)
+    (new SliceSimplePort(in) /: tree)(a, f => f(a)).data
+  }
+}
+
 // The ROB
 class ROB extends Module {
   val io = IO(new Bundle() {
@@ -128,5 +144,5 @@ class ROB extends Module {
   // The higher 6 bits of the next available inst#
   val next_inst = RegInit(0.U(6.W))
   val next_init_c = QuickPlusOne(next_inst)
-  
+
 }
