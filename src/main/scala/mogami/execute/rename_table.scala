@@ -8,8 +8,8 @@ class RenameDecodePort extends Bundle {
   val write_en = Input(Vec(4, Bool))
   val write_addr = Input(Vec(4, UInt(6.W)))
   val write_val = Input(Vec(4, UInt(8.W)))
-  val read_addr = Input(Vec(12, UInt(6.W)))
-  val read_val = Output(Vec(12, UInt(8.W)))
+  val read_addr = Input(Vec(4, Vec(3, new Operand())))
+  val read_val = Output(Vec(4, Vec(3, new Operand())))
 }
 
 // The interface to ROB

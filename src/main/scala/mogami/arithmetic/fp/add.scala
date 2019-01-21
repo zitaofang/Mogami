@@ -90,9 +90,9 @@ class FPAdd extends Module {
   // Shift the operand to their places within 159 (=3 * 53) bits.
   val m_shamt = exp_diff & Fill(7, m_shift_en)
   val a_shamt = exp_diff & Fill(7, ~m_shift_en)
-  val (ms_out_w, ms_sticky) = ShifterBlock(Cat(io.m.s, 0.U(53.W)), m_shamt)
-  val (mc_out_w, mc_sticky) = ShifterBlock(Cat(io.m.c, 0.U(53.W)), m_shamt)
-  val (a_out_w, a_sticky) = ShifterBlock(Cat(io.a, 0.U(106.W)), a_shamt)
+  val (ms_out_w, ms_sticky) = StickyShifter(Cat(io.m.s, 0.U(53.W)), m_shamt)
+  val (mc_out_w, mc_sticky) = StickyShifter(Cat(io.m.c, 0.U(53.W)), m_shamt)
+  val (a_out_w, a_sticky) = StickyShifter(Cat(io.a, 0.U(106.W)), a_shamt)
   // Out of range data processing
   val m_oor_sticky = (io.m.s.orR | io.m.c.orR) & m_oor
   val a_oor_sticky = io.a.orR & a_oor
@@ -146,8 +146,8 @@ class FPAdd extends Module {
 
   // ========== Stage ==========
   // shift sum and carry
-  val (s_out, s_sticky) = RegNext(ShifterBlock(cp_s, cp_shift))
-  val (c_out, c_sticky) = RegNext(ShifterBlock(cp_c, cp_shift))
+  val (s_out, s_sticky) = RegNext(StickyShifter(cp_s, cp_shift))
+  val (c_out, c_sticky) = RegNext(StickyShifter(cp_c, cp_shift))
   // Adjust the carry out value: check the existance of carry out
   // by xoring the highest two bits
   val cout =

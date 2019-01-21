@@ -46,12 +46,12 @@ class FPAuxClass extends Module {
   when (io.in.flags(0)) {
     io.out.output1(63, 52) := in.in.operand1(63, 52)
     io.out.output1(51, 0) :=
-      ShifterBlock(io.in.operand1(51, 0), shamt, false.B, false.B)
+      SimpleShifter(io.in.operand1(51, 0), shamt, false.B)
   } .otherwise {
     io.out.output1(63, 32) := ~0.U(32.W)
     io.out.output1(31, 23) := io.in.operand1(31, 23)
     io.out.output1(22, 0) :=
-      ShifterBlock(io.in.operand1(22, 0), shamt(4, 0), false.B, false.B)
+      SimpleShifter(io.in.operand1(22, 0), shamt(4, 0), false.B)
   }
 
   // Pull other output

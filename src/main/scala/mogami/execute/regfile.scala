@@ -58,3 +58,71 @@ class RegBankFreeList extends Module {
     io.flush_req.valid := ~queue_output.valid | queue_input.ready
   }
 }
+
+// The register file component
+class RegFile extends Module {
+  val io = IO(new Bundle() {
+    val read_in = Vec(4, Vec(3, Flipped(Irrevocable(new Operand()))))
+    val read_out = Vec(4, Vec(3, Valid(new Operand())))
+    val write = Vec(4, Flipped(Valid(new WritePack())))
+  })
+
+  val banks = (0 until 4) map Module(new RegFileBank())
+  val free_lists = (0 until 4) map Module(new RegBankFreeList())
+
+  // The index is also zipped into the compressor input so that
+  // it can be recover after read
+  class Compressed extends Bundle {
+    val addr = UInt(6.W)
+    val ind = UInt(4.W)
+  }
+  object Compressed {
+    def apply(addr: UInt, ind: UInt) = {
+      val res = Wire(new Compressed())
+      res.addr := addr
+      res.ind := ind
+      res
+    }
+    def empty = apply(0.U(6.W), 0.U(4.W))
+  }
+  // Group the access to each bank
+  val read_in_cat = (io.read_in flatMap _).zipWithIndex
+  val bank_access = (0 until 4) map i => read_in_cat map (req, j) => {
+    val valid = req.valid & req.bits.tag(7, 6) === i.U(2.W) &
+      req.bits.present
+    (valid, Compress(req.bits.tag(5, 0), j.U(4.W)))
+  }
+  // Compress accesses
+  val compressed = bank_access map CompressValid(_, Compressed.empty)
+
+  // The queue with 3 entries
+  // First, the entry
+  class QueueEntry extends Bundle {
+    val valid = Bool
+    val bits = Vec(3, new Compressed())
+  }
+  object QueueEntry {
+    def apply(valid: Bool, bits: Vec[Compressed]) = {
+      val res = Wire(new QueueEntry())
+      res.valid := valid
+      res.bits := bits
+      res
+    }
+    def empty = apply(false.B, VecInit(List().padTo(3, Compressed.empty)))
+  }
+  // Then, the queue itself
+  val queue = List().padTo(3, RegInit(Vec(4, new QueueEntry())))
+  // If Entry 1 or 2 is valid, stall the fetch
+  val ready = ~VecInit((queue(2) ++ queue(1)) map _.valid).orR
+  io.read_in map (_ map (_.ready := ready))
+
+  when (ready) {
+    // If the queue has something inside, shift it
+    queue(2) := QueueEntry.empty
+    queue(1) := queue(2)
+    queue(0) := queue(1)
+  } .otherwise {
+    // Put the compressed data into the queue
+  }
+
+}

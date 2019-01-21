@@ -151,7 +151,7 @@ class DivSqrtSeedMantissa extends Module {
   // The function to shift the operand
   val shift_func = (a, i) => Mux(additional_state,
     Cat(Fill(4, (i == 7).B), a),
-    ShifterBlock(Cat(a, 0.U(4.W)), c2_shamt, true.B, (i == 7).B)._1
+    SimpleShifter(Cat(a, 0.U(4.W)), c2_shamt, true.B, (i == 7).B)
   )
   // Shift
   // Here, the propagation tail is shifted in
@@ -159,10 +159,10 @@ class DivSqrtSeedMantissa extends Module {
     ((c2_pp zip (0 until 8)) map Cat(0.U(19.W),
       shift_func(_, _)
     0.U(6.U))) ++
-    Cat(ShifterBlock(c0_pp, c0_shamt, true.B, false.B)._1, 0.U(26.W))
+    Cat(SimpleShifter(c0_pp, c0_shamt, true.B, false.B), 0.U(26.W))
   val neg_pp =
     (c1_pp map Cat(0.U(10.W),
-      ShifterBlock(Cat(_, 0.U(3.W)), c1_shamt, true.B, false.B)._1)
+      SimpleShifter(Cat(_, 0.U(3.W)), c1_shamt, true.B, false.B))
     )
 
   // Add the propagation bit in

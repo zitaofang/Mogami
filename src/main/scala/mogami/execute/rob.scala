@@ -144,5 +144,10 @@ class ROB extends Module {
   // The higher 6 bits of the next available inst#
   val next_inst = RegInit(0.U(6.W))
   val next_init_c = QuickPlusOne(next_inst)
-
+  // Compress the input instruction
+  val compressed = CompressValid(io.commit)
+  // Rotate the instructions to align the head
+  val rotated = ROBRotator(compressed, dispatch_head)
+  // Connect the rotated values to the banks
+  (banks zip rotated) map (_io.dispatch <> _)
 }

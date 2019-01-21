@@ -59,13 +59,6 @@ abstract class BaseBarrelSlice[T] {
   def result = new SliceSimplePort(data_out)
 }
 
-// The helper function
-object BaseBarrelSlice {
-  def apply(in: SlicePort[T], shift: Bool, to_right: Bool) = {
-
-  }
-}
-
 // The shifter class
 abstract class ShifterSlice[T] extends BarrelRotator[T] {
   def left_in_ctr: T
@@ -81,33 +74,46 @@ abstract class RotatorSlice[T] extends BarrelRotator[T] {
   override def left_in_blk = right_out_blk
 }
 
-// The shift-out reduce trait: Apply reduce function on shifting out
-trait ShiftOutReduce {
+// The shift-out reduce trait: Apply reduce function on shifting out.
+// WARNING: Always put this trait as the last trait. Other traits may
+// override the result as a simple port and discard the reduced value.
+trait ShiftOutReduce[T] {
   type T
   this: ShifterSlice[T] =>
 
   def reduce_ctr: T
   def reduce_func: (T, T) => T
-
-  def reduce_in: T
   // =======================
+  val reduce_in = in match { case SliceReducePort(_, r) => r }
   val reduce_block = (0 until block_size) map reduce_ctr
   // =======================
   val reduce_out = (reduce_in /: reduce_block)(reduce_func)
-  override def result = new SliceReducePort(data_out, reduce_out)
+  override def result = new SliceReducePort(super.result.data, reduce_out)
 }
 
 // The unaligned shift trait: Allow the width of input to be indivisible by
 // block_size
-trait UnalignedShifter {
-  type T
+trait UnalignedShifter[T] {
   this: ShifterSlice[T] =>
 
   def padding_right: Boolean
+  // =======================
+  // The padding element #
+  val padding = block_size - (in.length % block_size)
 
-  val padding = in.length % block_size
+  // Padded the input
   val right_padded_in = ((0 until padding) map right_in_ctr) ++ in.data
   val left_padded_in = in.data ++ ((0 until padding) map left_in_ctr)
   val padded_in = if (padding_right) right_padded_in else left_padded_in
+
+  // Override group to select the padded input
   override def grouped = padded_in group block_size
+
+  // override the output so that its width is equal to the input
+  // Note that "right" in this project means smaller index and is
+  // opposite to the Scala definition, which means larger index.
+  val right_padded_out = data_out drop padding
+  val left_padded_out = data_out dropRight padding
+  val padded_out = if (padding_right) right_padded_out else left_padded_out
+  override def result = new SliceSimplePort(padded_out)
 }
