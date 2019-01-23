@@ -19,8 +19,8 @@ abstract class BaseBarrelSlice[T] {
   // to_right:
   // The control signal of shifting direction.
   def in: SlicePort[T]
-  def shift: Bool
-  def to_right: Bool
+  def shift: Bool()
+  def to_right: Bool()
 
   // The interface provided by the subclass.
   // block_size: the size of the data block, the basic unit of data
@@ -31,7 +31,7 @@ abstract class BaseBarrelSlice[T] {
   // left_in_blk: The data block shifting in from the left.
   // barrel_in: the actual input that the slice will take. Can be overloaded.
   def block_size: Int
-  def mux_func: (Bool, T, T) => T
+  def mux_func: (Bool(), T, T) => T
   def right_in_blk: Seq[T]
   def left_in_blk: Seq[T]
 
@@ -41,7 +41,7 @@ abstract class BaseBarrelSlice[T] {
 
   // =========================
   // Internal states
-  val block_mux = (s: Bool, a: T, b: T) => (a zip b) map mux_func(s, _, _)
+  val block_mux = (s: Bool(), a: T, b: T) => (a zip b) map mux_func(s, _, _)
   val shifted_r = right_in_blk +: grouped.init
   val shifted_l = grouped.tail :+ left_in_blk
   val shifted = (shifted_r zip shifted_l) map block_mux(to_right, _, _)
@@ -96,7 +96,7 @@ trait ShiftOutReduce[T] {
 trait UnalignedShifter[T] {
   this: ShifterSlice[T] =>
 
-  def padding_right: Boolean
+  def padding_right: Bool()ean
   // =======================
   // The padding element #
   val padding = block_size - (in.length % block_size)

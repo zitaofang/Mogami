@@ -37,7 +37,7 @@ class CompressValid[T <: Data](width_exp: Int, t: T) extends Module {
     val out = Vec(width, Valid(t))
   })
 
-  type ValidPair = (Bool, T)
+  type ValidPair = (Bool(), T)
   type Block = Seq[ValidPair]
   type SizedBlock = (Block, UInt)
 
@@ -92,7 +92,7 @@ object CompressValid {
     core.io.in <> in
     core.io.out
   }
-  def apply[T <: Data](in: Seq[(Bool, T)], t: T) = {
+  def apply[T <: Data](in: Seq[(Bool(), T)], t: T) = {
     // Pad
     val level = log2ceil(in.length)
     val padded_in = in.padTo(math.pow(2, level).toInt, t)

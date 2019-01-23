@@ -47,8 +47,8 @@ class CoeffLUT extends BlackBox {
 // The Mantissa component
 class DivSqrtSeedMantissa extends Module {
   val io = IO(new Bundle{
-    val is_sqrt = Input(Bool)
-    val sqrt_2 = Input(Bool)
+    val is_sqrt = Input(Bool())
+    val sqrt_2 = Input(Bool())
     val in = Input(UInt(52.W))
     val out_s = Output(UInt(30.W))
     val out_c = Output(UInt(30.W))

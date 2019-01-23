@@ -9,12 +9,20 @@ class Value extends Bundle {
   val fp_flag = UInt(8.W)
 }
 
-// The operand
+// The operand. See below for the encoding.
+// WARNING: The rules below are the general encoding and does not cover
+// the encoding used within RegFile module. See that class for its usage
+// in RegFile module.
 class Operand extends Value {
-  val present = Bool
+  // Before the register read, the present is 0 for those to be supplied
+  // by another instruction, 1 otherwise.
+  val present = Bool()
   // If the operand does not present, this field is valid and holds the
   // instruction tag of that will produce the operand.
-  val tag = UInt(8.W)
+  // Before the register read stage, this field hold the physical
+  // register address in the lower 8 bits (the upper 2 bits are all 1)
+  // if present it 1. If it is an immediate, this field is cleared.
+  val tag = UInt(10.W)
   // If the operand presents, these two inherited fields hold the value.
 }
 
@@ -50,7 +58,7 @@ class CDBInterface extends WritePack {
   // The micro-ops tag.
   val micro_tag = UInt(10.W)
   // The exception bits.
-  val except = Bool
+  val except = Bool()
 }
 
 // The main module for execute unit.

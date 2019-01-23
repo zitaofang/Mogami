@@ -5,7 +5,7 @@ import chisel3.util._
 
 // The interface to decoder
 class RenameDecodePort extends Bundle {
-  val write_en = Input(Vec(4, Bool))
+  val write_en = Input(Vec(4, Bool()))
   val write_addr = Input(Vec(4, UInt(6.W)))
   val write_val = Input(Vec(4, UInt(8.W)))
   val read_addr = Input(Vec(4, Vec(3, new Operand())))
@@ -14,7 +14,7 @@ class RenameDecodePort extends Bundle {
 
 // The interface to ROB
 class RenameROBPort extends Bundle {
-  val write_en = Input(Vec(4, Bool))
+  val write_en = Input(Vec(4, Bool()))
   val write_addr = Input(Vec(4, UInt(6.W)))
   val write_val = Input(Vec(4, UInt(8.W)))
   val free_addr = Output(Vec(4, UInt(8.W)))
@@ -23,10 +23,10 @@ class RenameROBPort extends Bundle {
 // The rename table entry
 class RenameTableEntry(order: Int) extends Module {
   val io = IO(new Bundle() {
-    val flush = Input(Bool)
+    val flush = Input(Bool())
     val flush_val = Input(UInt(8.W))
 
-    val write_en = Input(Vec(4, Bool))
+    val write_en = Input(Vec(4, Bool()))
     val write_addr = Input(Vec(4, UInt(6.W)))
     val write_val = Input(Vec(4, UInt(8.W)))
     val value = Output(UInt(8.W))
@@ -40,7 +40,7 @@ class RenameTableEntry(order: Int) extends Module {
 }
 object RenameTableEntry {
   def apply(order: Int, write_en: Vec, write_addr: Vec, write_val: Val,
-    flush: Bool, flush_val: UInt) = {
+    flush: Bool(), flush_val: UInt) = {
     val res = Module(new RenameTableEntry(order))
     res.io.write_en := write_en
     res.io.write_addr := write_addr
@@ -55,7 +55,7 @@ object RenameTableEntry {
 class DecodeRenameTable extends Module {
   val io = IO(new Bundle() {
     // If 1, copy all entries from the committed table
-    val flush = Input(Bool)
+    val flush = Input(Bool())
     val flush_value = Input(Vec(64, UInt(8.W)))
 
     val port = new RenameDecodePort()
@@ -88,7 +88,7 @@ class CommitRenameTable extends Module {
 // The rename table exposed to other component
 class RenameTable extends Module {
   val io = IO(new Bundle() {
-    val flush = Input(Bool)
+    val flush = Input(Bool())
     val decode_port = new RenameDecodePort()
     val rob_port = new RenameROBPort()
   })

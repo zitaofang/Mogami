@@ -61,7 +61,7 @@ class Decode extends Module {
   def extractOperand(inst: UInt) = {
     // At this time, we don't consider SYSTEM instruction list in
     // the encoding map of Chapter 25, RISC-V specs.
-    val type_vector = Wire(Vec(7, Bool))
+    val type_vector = Wire(Vec(7, Bool()))
     // If inst[4:2] == 101, U-type
     type_vector(0) := inst(4, 2) === "b'101".U(3.W)
     // If inst[6:2] == 11000, B-type

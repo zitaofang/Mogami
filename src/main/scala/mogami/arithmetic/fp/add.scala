@@ -30,22 +30,22 @@ def lza(a_in: UInt, b_in: UInt) = {
 // It should be note that some inputs are expected to be one cycle late.
 class FPAdd extends Module {
   val io = IO(new Bundle() {
-    val is_double = Input(Bool)
+    val is_double = Input(Bool())
 
     val m = Input(CarrySave(106)) // ONE CYCLE LATE
     val m_exp = Input(UInt(12.W))
-    val m_sign = Input(Bool)
+    val m_sign = Input(Bool())
     val m_flags = Input(UInt(4.W)) // One-hot flags: zero, denorm, inf, nan
     val a = Input(UInt(53.W)) // ONE CYCLE LATE
     val a_exp = Input(UInt(12.W))
-    val a_sign = Input(Bool)
+    val a_sign = Input(Bool())
     val a_flags = Input(UInt(4.W))
 
     val out = Output(CarrySave(55))
     val out_exp = Output(UInt(12.W))
     val out_sign = Output(UInt(12.W))
     val out_flags = Output(UInt(4.W))
-    val sticky = Output(Bool)
+    val sticky = Output(Bool())
   })
 
   // Calculate exponent

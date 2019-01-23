@@ -3,9 +3,9 @@ import chisel3.util._
 
 // The 64 bits SD4 interface
 class SD4Port extends Module {
-  val sign = Bool
-  val nonzero = Bool
-  val shift = Bool
+  val sign = Bool()
+  val nonzero = Bool()
+  val shift = Bool()
 }
 object SD4Port {
   def apply = new SD4Port()
@@ -19,19 +19,19 @@ object SD4Port {
 // Page .
 // TODO fill in
 class RecoderInPort extends Bundle {
-  val l = Bool
-  val r_2m = Bool
-  val r_1s = Bool
-  val r_1m = Bool
+  val l = Bool()
+  val r_2m = Bool()
+  val r_1s = Bool()
+  val r_1m = Bool()
 }
 object RecoderInPort{
   def apply: new RecoderInPort()
 }
 class RecoderOutPort extends Bundle {
-  val sign = Bool
-  val m_2 = Bool
-  val m_1 = Bool
-  val m_0 = Bool
+  val sign = Bool()
+  val m_2 = Bool()
+  val m_1 = Bool()
+  val m_0 = Bool()
 }
 object RecoderOutPort {
   def apply: new RecoderOutPort()
@@ -49,9 +49,9 @@ val cellOutputToSD4 = (in: RecoderOutPort) => {
 class SD4RecoderCoreCell extends Module {
   val io = IO(new Bundle{
     val in = Input(RecoderInPort)
-    val carry_in = Input(Bool)
+    val carry_in = Input(Bool())
     val out = Output(RecoderOutPort)
-    val carry_out = Output(Bool)
+    val carry_out = Output(Bool())
   })
 
   io.out.sign := io.in.r_2m ^ io.in.r_1s;
@@ -68,9 +68,9 @@ class SD4RecoderCoreCell extends Module {
 class SD4Recoder2CCell extends Module {
   val io = IO(new Bundle{
     val in = Input(UInt(2.W))
-    val carry_in = Input(Bool)
+    val carry_in = Input(Bool())
     val out = Output(SD4Port)
-    val carry_out = Output(Bool)
+    val carry_out = Output(Bool())
   })
   val core = Module(new SD4RecoderCoreCell)
   core.io.in.l := ~io.in(1)
@@ -88,9 +88,9 @@ class SD4RecoderCSCell extends Module {
   val io = IO(new Bundle{
     val in_c = Input(UInt(3.W))
     val in_s = Input(UInt(3.W))
-    val carry_in = Input(Bool)
+    val carry_in = Input(Bool())
     val out = Output(SD4Port)
-    val carry_out = Output(Bool)
+    val carry_out = Output(Bool())
   })
   // Generate the intermediate values (see the paper)
   val tmp = Array(~(io.in_c(2) ^ io.in_s(2)), ~(io.in_c(1) | io.in_s(1)),
@@ -114,7 +114,7 @@ class SD4Recoder2C(width: Int) extends Module {
   val io = IO(new Bundle{
     val in = Input(UInt(width.W))
     val out = Output(Vec(comp_num, new SD4Port(width)))
-    val carry_out = Output(Bool)
+    val carry_out = Output(Bool())
   })
 
   // Create component, connect carry bits
@@ -143,7 +143,7 @@ class SD4RecoderSC(width: Int) extends Module {
     val in_s = Input(UInt(width.W))
     val in_c = Input(UInt(width.W))
     val out = Output(Vec(comp_num, SD4Port))
-    val carry_out = Output(Bool)
+    val carry_out = Output(Bool())
   })
 
   // Create component, connect carry bits

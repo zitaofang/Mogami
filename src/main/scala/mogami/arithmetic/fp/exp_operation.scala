@@ -9,8 +9,8 @@ import chisel3.util._
 // Add and subtract of FP number.
 class ExpAdder extends Module {
   val io = IO(new Bundle() {
-    val is_double = Input(Bool)
-    val subtract = Input(Bool)
+    val is_double = Input(Bool())
+    val subtract = Input(Bool())
     val a = Input(UInt(12.W))
     val b = Input(UInt(12.W))
     val out = Output(UInt(12.W))
@@ -40,7 +40,7 @@ class ExpDiv2 extends Module {
   val io = IO(new Bundle() {
     val in = Input(UInt(12.W))
     val out = Output(UInt(12.W))
-    val sqrt_2 = Output(Bool)
+    val sqrt_2 = Output(Bool())
   })
   // sqrt_2 = ~LSB, for the encoding is (2's complement) - 1
   // The exponent is odd if LSB is 0
@@ -61,8 +61,8 @@ class AbsDiff extends Module {
   val io = IO(new Bundle{
     val a = Input(UInt(12.W))
     val b = Input(UInt(12.W))
-    val lt = Output(Bool)
-    val eq = Output(Bool)
+    val lt = Output(Bool())
+    val eq = Output(Bool())
     val out = Output(UInt(12.W))
   })
 

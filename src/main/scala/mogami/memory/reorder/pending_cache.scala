@@ -15,9 +15,9 @@ class PendingCache extends Module {
     // Stall the reservation station if there is a store entry conflict
     // (two stores to different addresses with the same index)
     // or more than four pending stores for one address.
-    val stall = Output(Bool)
+    val stall = Output(Bool())
     // Flush the pipeline if there is a speculative load conflict
     // (the address is read )
-    val flush = Output(Bool)
+    val flush = Output(Bool())
   })
 }

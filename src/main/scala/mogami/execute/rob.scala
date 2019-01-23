@@ -12,7 +12,7 @@ class ROBLine extends Bundle {
 // The completion port data bundle
 class CompletionBundle extends Bundle {
   val addr = UInt(8.W)
-  val exception = Bool
+  val exception = Bool()
 }
 
 // The ROB bank; there are 4 in total.
@@ -27,7 +27,7 @@ class ROBBank(num: Int) extends Module {
 
     // Report to the Controller that the instruction in this bank raise an
     // exception
-    val except_detected = Output(Bool)
+    val except_detected = Output(Bool())
   })
 
   // The completion and exception bits
@@ -37,7 +37,7 @@ class ROBBank(num: Int) extends Module {
   // The head and tail counter
   val head = RegInit(0.U(6.W))
   val tail = RegInit(0.U(6.W))
-  val head_after_tail = RegInit(Bool)
+  val head_after_tail = RegInit(Bool())
 
   // The memory entries
   val mem_entries = Mem(64, new ROBLine())
@@ -52,8 +52,8 @@ class ROBBank(num: Int) extends Module {
   val empty = full_or_empty & ~head_after_tail
 
   // Whether head_after_tail needs to be flipped
-  val dispatch_flip = Wire(Bool)
-  val commit_flip = Wire(Bool)
+  val dispatch_flip = Wire(Bool())
+  val commit_flip = Wire(Bool())
 
   // dispatch
   val dispatch_ready = io.dispatch.valid & ~full
@@ -100,7 +100,7 @@ class ROBBank(num: Int) extends Module {
 
 // The ROB rotator
 object ROBRotator {
-  class Slice(level: Int, in: SlicePort[ROBLine], shift: Bool)
+  class Slice(level: Int, in: SlicePort[ROBLine], shift: Bool())
   extends RotatorSlice[ROBLine] {
     override def mux_func = Mux(_, _, _)
     override def block_size = math.pow(2, level).intValue
@@ -122,8 +122,8 @@ class ROB extends Module {
     val completion = Vec(4, Flipped(Vaild(new CompletionBundle())))
 
     // Pulling this pin to high will trigger a reset to flush the pipeline
-    val exception = Output(Bool)
-    val stall = Output(Bool)
+    val exception = Output(Bool())
+    val stall = Output(Bool())
   })
   // Four banks
   val banks = (0 until 4) map Module(new ROBBank(_))

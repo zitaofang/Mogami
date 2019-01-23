@@ -9,7 +9,7 @@ class Shifter extends Module {
   })
 
   // Implement the shifter
-  class Slice(level: Int, in: SlicePort[Bool], shift: Bool)
+  class Slice(level: Int, in: SlicePort[Bool], shift: Bool())
   extends ShifterSlice[Bool] {
     override def left_in_ctr = io.input.flags(1) & io.input.operand1(63)
     override def right_in_ctr = false.B
@@ -22,7 +22,7 @@ class Shifter extends Module {
   val tree = (0 until 6) map slice(_)
 
   io.output.output1 :=
-    (new SliceSimplePort(io.input.operand1.toBools) /: tree)
+    (new SliceSimplePort(io.input.operand1.toBool()s) /: tree)
     (a, f => f(a)).data
   io.output.output1_en := io.input.enable
   io.output.output2 := 0.U
@@ -32,8 +32,8 @@ class Shifter extends Module {
 
 // Simple shifter function
 object SimpleShifter {
-  def apply(input: UInt, shamt: UInt, to_right_: Bool = true.B,
-    shift_in: Bool = false.B) => {
+  def apply(input: UInt, shamt: UInt, to_right_: Bool() = true.B,
+    shift_in: Bool() = false.B) => {
       class Slice(level: Int, in: SlicePort[Bool])
       extends ShifterSlice[Bool] with UnalignedShifter[Bool] {
         override def shift = shamt(level)

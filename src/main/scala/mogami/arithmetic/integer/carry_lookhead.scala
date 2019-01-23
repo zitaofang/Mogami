@@ -6,8 +6,8 @@ class Lookahead extends Module {
   val io = IO(new Bundle{
     val g = Input(UInt(4.W))
     val p = Input(UInt(4.W))
-    val g_out = Output(Bool)
-    val p_out = Output(Bool)
+    val g_out = Output(Bool())
+    val p_out = Output(Bool())
     val c0_out = Output(UInt(4.W))
     val c1_out = Output(UInt(4.W))
   })
@@ -56,8 +56,8 @@ object Lookahead {
     }
   }
   class Output extends Bundle {
-    val g = Bool
-    val p = Bool
+    val g = Bool()
+    val p = Bool()
     val c0 = UInt(4.W)
     val c1 = UInt(4.W)
   }
@@ -86,9 +86,9 @@ class CompoundAdder(level: Int) extends Module {
     val b = Input(UInt(input_width.W))
     val s0 = Output(UInt(input_width.W))
     val s1 = Output(UInt(input_width.W))
-    val g = Output(Bool) // Global generate
-    val p = Output(Bool) // Global propagate
-    val sign_c = Output(Vec(2, Bool)) // sign bit carry in, for overflow detection
+    val g = Output(Bool()) // Global generate
+    val p = Output(Bool()) // Global propagate
+    val sign_c = Output(Vec(2, Bool())) // sign bit carry in, for overflow detection
   })
 
   // propagate, generate, and sum
@@ -128,8 +128,8 @@ class CompoundAdder(level: Int) extends Module {
     case Nil => c
     case (c0, c1) +: tail => carry_select(
       (
-        Cat((c._1.toBool, c0, c1).zipped map (_ match case (c, a, b) => Mux(c, b, a))),
-        Cat((c._2.toBool, c0, c1).zipped map (_ match case (c, a, b) => Mux(c, b, a)))
+        Cat((c._1.toBool(), c0, c1).zipped map (_ match case (c, a, b) => Mux(c, b, a))),
+        Cat((c._2.toBool(), c0, c1).zipped map (_ match case (c, a, b) => Mux(c, b, a)))
       ),
       tail
     )
@@ -148,10 +148,10 @@ class Adder(level: Int) extends Module {
   val io = IO(new Bundle{
     val a = Input(UInt(input_width.W))
     val b = Input(UInt(input_width.W))
-    val cin = Input(Bool)
+    val cin = Input(Bool())
     val s = Output(UInt(input_width.W))
-    val cout = Output(Bool)
-    val sign_c = Output(Bool)
+    val cout = Output(Bool())
+    val sign_c = Output(Bool())
   })
 
   val core = Module(new CompoundAdder(level))

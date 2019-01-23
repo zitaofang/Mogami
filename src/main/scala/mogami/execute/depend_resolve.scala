@@ -9,8 +9,8 @@ class PackDependency(instIndex: UInt => UInt) extends Module {
     val read = Input(Vec(4, Vec(3, new Operand())))
     val write = Input(Vec(4, UInt(6.W)))
     val read_out = Output(Vec(4, Vec(3, new Operand())))
-    val read_sel = Output(Vec(4, Vec(3, Bool)))
-    val rename_en = Output(Vec(4, Bool))
+    val read_sel = Output(Vec(4, Vec(3, Bool())))
+    val rename_en = Output(Vec(4, Bool()))
   })
 
   // Compare the operand register addr to every write addr

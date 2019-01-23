@@ -11,8 +11,8 @@ import chisel3.util._
 class RenameFlushControl extends Module {
   val io = IO(new Bundle() {
     // The register bank selection
-    val read_bank = Output(Bool)
-    val write_bank = Output(Bool)
+    val read_bank = Output(Bool())
+    val write_bank = Output(Bool())
 
     val flush_req = Filpped(Irrevocable(DontCare))
 
@@ -31,7 +31,7 @@ class RenameFlushControl extends Module {
   io.write_bank := bank_reg ^ flush_req.valid
 
   // The counter of current registers being transferred
-  val finished = Wire(Bool)
+  val finished = Wire(Bool())
   val reg_counter = Wire(UInt(4.W))
   // Reset the counter once finished
   withReset(reset | finished) {
