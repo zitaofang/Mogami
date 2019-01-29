@@ -3,7 +3,7 @@ import chisel3.util._
 
 // General partial product generation
 object PPGenerate {
-  def apply(a: UInt, b: Vec[SD4Port], compensate: Bool()) = {
+  def apply(a: UInt, b: Vec[SD4Port], compensate: Bool) = {
     val a_width = a.getWidth
     val b_width = b.length
     val out_width = a_width + b_width * 2

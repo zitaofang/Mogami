@@ -2,7 +2,7 @@ import chisel3._
 import chisel3.util._
 
 // The csa function, with one bit carry out on the left
-def csa(width: Int)(a: UInt, b: UInt, c: UInt, carry_in: Bool()): Tuple2[UInt, UInt] = {
+def csa(width: Int)(a: UInt, b: UInt, c: UInt, carry_in: Bool): Tuple2[UInt, UInt] = {
   val s = UInt((width + 1).W)
   val c = UInt((width + 1).W)
 
@@ -13,7 +13,7 @@ def csa(width: Int)(a: UInt, b: UInt, c: UInt, carry_in: Bool()): Tuple2[UInt, U
 }
 
 // The half adder
-def ha(width: Int)(a: UInt, b: UInt, carry_in: Bool()): Tuple2[UInt, UInt] = {
+def ha(width: Int)(a: UInt, b: UInt, carry_in: Bool): Tuple2[UInt, UInt] = {
   val s = UInt((width + 1).W)
   val c = UInt((width + 1).W)
 
@@ -31,7 +31,7 @@ def csa_tree(width: Int)(in_arr: List): Tuple2[UInt, UInt] = {
   val to_tuple = (arr: List) => (case List(a, b, c, _*) => (a, b, c, false.B))
   // The internal function for folding
   @scala.annotation.tailrec
-  def csa_slice(from_right: Bool()ean, in_array: List) = {
+  def csa_slice(from_right: Boolean, in_array: List) = {
     if (in_array.length <= 2)
       in_array
     else {

@@ -5,9 +5,9 @@ import chisel3.util._
 
 // Multi-level mux
 object MultiMux {
-  private def array_mux(ctl: Bool(), input: Array(2)) =
+  private def array_mux(ctl: Bool, input: Array(2)) =
     Mux(ctl, input(1), input(0))
-  private def reduce_mux_slice(ctl: Bool(), input: Seq[Data]) =
+  private def reduce_mux_slice(ctl: Bool, input: Seq[Data]) =
     (0 until input.length / 2) map (
       (i: Int) => Mux(ctl, input(input.length / 2 + i), input(i))
     )
@@ -33,7 +33,7 @@ object CarrySave {
 
 // Quick +1, Canonical adder
 object QuickPlusOne {
-  def apply(a: UInt, add: Bool()) = {
+  def apply(a: UInt, add: Bool) = {
     val carry = (0 until a.getWidth) map (a(_, 0).andR & add)
     a ^ Cat(carry)
   }
@@ -41,7 +41,7 @@ object QuickPlusOne {
 
 // Quick +1 or -1 implemented with QuickPlusOne
 object QuickIncrementer {
-  def apply(a: UInt, enable: Bool(), decrement: Bool()) = {
+  def apply(a: UInt, enable: Bool, decrement: Bool) = {
     val width = a.getWidth
     QuickPlusOne(Fill(width, decrement) ^ a) ^ Fill(width, decrement)
   }

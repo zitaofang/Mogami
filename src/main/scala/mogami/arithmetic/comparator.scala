@@ -105,7 +105,7 @@ object ComparatorBlock {
     val initial_in = (0 until 64) map ((i: Int) => (lt_bit(i), neq_bit(i)))
 
     // The cell of a comparator
-    def comparator_cell((lt_in1: Bool(), neq_in1: Bool()), (lt_in2: Bool(), neq_in2: Bool())) =
+    def comparator_cell((lt_in1: Bool, neq_in1: Bool), (lt_in2: Bool, neq_in2: Bool)) =
       {
         val lt_out = Mux(neq_in2, lt_in2, lt_in1)
         val neq_out = neq_in2

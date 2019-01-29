@@ -100,7 +100,7 @@ class ROBBank(num: Int) extends Module {
 
 // The ROB rotator
 object ROBRotator {
-  class Slice(level: Int, in: SlicePort[ROBLine], shift: Bool())
+  class Slice(level: Int, in: SlicePort[ROBLine], shift: Bool)
   extends RotatorSlice[ROBLine] {
     override def mux_func = Mux(_, _, _)
     override def block_size = math.pow(2, level).intValue

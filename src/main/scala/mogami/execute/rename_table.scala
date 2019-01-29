@@ -40,7 +40,7 @@ class RenameTableEntry(order: Int) extends Module {
 }
 object RenameTableEntry {
   def apply(order: Int, write_en: Vec, write_addr: Vec, write_val: Val,
-    flush: Bool(), flush_val: UInt) = {
+    flush: Bool, flush_val: UInt) = {
     val res = Module(new RenameTableEntry(order))
     res.io.write_en := write_en
     res.io.write_addr := write_addr

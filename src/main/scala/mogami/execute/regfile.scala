@@ -23,7 +23,7 @@ object ReadAddr {
 type QueueEntry = Valid[Vec[ReadAddr]]
 object QueueEntry {
   def apply() = Valid(Vec(3, new ReadAddr()))
-  def apply(valid: Bool(), bits: Vec[ReadAddr]) = {
+  def apply(valid: Bool, bits: Vec[ReadAddr]) = {
     val res = Valid(Vec(3, new ReadAddr()))
     res.valid := valid
     res.bits := bits
@@ -43,8 +43,8 @@ object QueueEntry {
 class RegFileRawRAM extends Module {
   val io = IO(new Bundle() {
     val read_bank = UInt(1.W)
-    val read_addr = Vec(4, Flipped(Valid(UInt(6.W))))
-    val read_data = Output(UInt(72.W))
+    val read_addr = Input(Vec(4, new Operand()))
+    val read_data = Output(Vec(4, new Operand()))
     val write = Valid(new Bundle() {
       val bank = UInt(1.W)
       val addr = UInt(6.W)
@@ -53,10 +53,20 @@ class RegFileRawRAM extends Module {
   })
 
   val mems = (0 until 4) map SyncReadMem(64, UInt(72.W))
-  (mems zip io.read_addr) map (m, r) => {
+  (mems zip io.read_addr zip io.read_data) map (m, r, o) => {
     // Set up register read
-    io.read_data := m.read(Cat(io.read_bank, r.bits), r.valid)
-    // Write
+    // Special encoding of Operand() is used. See the top of the page
+    // for comments.
+    (o.value, o.fp_flags) :=
+      m.read(Cat(io.read_bank, r.value(5, 0)), r.present)
+
+    // Fill in the rest of the structure
+    o.present := r.present
+    o.tag := r.tag
+
+    // =======================================
+
+    // Write.
     m.write(Cat(io.write.bank, io.write.addr), io.write.data)
   }
 }
@@ -129,7 +139,7 @@ class RegFileRAM(i: Int) extends Module {
   // If Entry 1 or 2 is valid, stall the fetch
   io.local_ready := ~addr_queue(2).valid & ~addr_queue(1).valid
 
-  when (io.global_ready) {
+  when (~io.global_ready) {
     // If the queue has something inside, shift it
     addr_queue(2) := FillZero(Valid(Vec(4, new Operand())))
     addr_queue(1) := addr_queue(2)
@@ -139,23 +149,42 @@ class RegFileRAM(i: Int) extends Module {
     (addr_queue zip grouped_compressed) map _ := _
   }
 
+  // Mask bit: when a read request that is served within 1 cycle is
+  // following a 3-cycle read request, the queue entry 2 and 1 should
+  // not be read.
+  // The mask should only be updated if the queue is filled with new
+  // data.
+  val mask_bit = RegEnable(grouped_compressed map _.valid,
+    io.global_ready)
+  // Data queue pointer: mark the next entry of data queue after the
+  // RAM is read.
+  val data_queue_p = RegInit(1.U(3.W))
+  when (~io.global_ready) {
+    data_queue_p := data_queue_p << 1
+  } .otherwise {
+    data_queue_p := 1.U(3.W)
+  }
+
+  // ===========================================
+  // RAM read
+
   // connect addresses to the RAM
   (core.io.read_addr zip addr_queue(0)) map (ra, q) => {
     ra.valid := q.valid
     ra.bits := q.bits
   }
 
-  // Send the queue entry valid bits to the read data control stage
-  val valid_reg = RegNext(VecInit(addr_queue map _.valid).reverse)
-  // Also, save the current entry to replace in the next step
-  val current_entry = RegNext(addr_queue(0))
-
   // ===========================================
   // Read data control
 
   // The read data queue
-  val data_queue = RegInit(FillZero(Valid(Vec(4, new Operand()))))
-
+  // The output of RAM will be put into the entry the pointer pointing to
+  val data_queue = (0 until 3) map
+    RegEnable(core.io.read_data, data_queue_p(_))
+  // mask the valid bit, then decompress it
+  val masked_data = (data_queue flatMap _) map c => {
+    val res = Wire()
+  }
 }
 
 // The associated free entry list

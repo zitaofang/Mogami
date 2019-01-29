@@ -5,7 +5,7 @@ import chisel3.util._
 
 // Detect if a FP is an NaN.
 object IsNaN {
-  def apply(is_double: Bool(), in: UInt, in_fp: UInt) = {
+  def apply(is_double: Bool, in: UInt, in_fp: UInt) = {
     val d_nan = in(62) & (in_fp(1) | in_fp(4))
     val s_nan = ~in(62) | in_fp(2) | in(30) & in_fp(1)
     Mux(is_double, d_nan, s_nan)
@@ -14,7 +14,7 @@ object IsNaN {
 
 // Detect if a FP is a zero.
 object IsZero {
-  def apply(is_double: Bool(), in: UInt, in_fp: UInt) = {
+  def apply(is_double: Bool, in: UInt, in_fp: UInt) = {
     val exp_msb = Mux(is_double, in(62), in(30))
     (in_fp(0) & ~in_fp(1) & ~exp_msb)
   }
@@ -22,7 +22,7 @@ object IsZero {
 
 // Detect if a FP is an inf.
 object IsInf {
-  def apply(is_double: Bool(), in: UInt, in_fp: UInt) = {
+  def apply(is_double: Bool, in: UInt, in_fp: UInt) = {
     val exp_msb = Mux(is_double, in(62), in(30))
     (in_fp(0) & in_fp(1) & ~exp_msb)
   }
@@ -39,7 +39,7 @@ class RoundingBits extends Bundle {
 // its output to recover the original value.
 // This function always output in 2's complement format instead of biased.
 object ExtractExp {
-  def apply(is_double: Bool(), in: UInt, in_fp: UInt) = {
+  def apply(is_double: Bool, in: UInt, in_fp: UInt) = {
     // Align it to 12-bit field so that denorms can be represented
     val d_normal_2c = Cat(Fill(2, ~in(62)), in(61, 52))
     val s_normal_2c = Cat(Fill(5, ~in(30)), in(29, 23))
@@ -66,7 +66,7 @@ object EncodeExp {
     val underflow = Bool()
     val denorm = Bool()
   }
-  def apply(is_double: Bool(), in: UInt) = {
+  def apply(is_double: Bool, in: UInt) = {
     val res = new Result()
 
     // Detect overflow, underflow and denorm generation
@@ -89,7 +89,7 @@ object EncodeExp {
 
 // Encoding flags according to regular encoder format.
 object EncodeFlags {
-  def apply(is_double: Bool(), nan: Bool(), inf: Bool(), zero: Bool(), denorm: Bool(),
+  def apply(is_double: Bool, nan: Bool, inf: Bool, zero: Bool, denorm: Bool,
     denorm_exp: UInt) = {
       val denorm_exp_shifted =
         Mux(is_double, denorm_exp, Cat(denorm_exp(4, 0), false.B))

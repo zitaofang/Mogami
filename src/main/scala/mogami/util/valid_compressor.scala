@@ -37,11 +37,11 @@ class CompressValid[T <: Data](width_exp: Int, t: T) extends Module {
     val out = Vec(width, Valid(t))
   })
 
-  type ValidPair = (Bool(), T)
+  type ValidPair = (Bool, T)
   type Block = Seq[ValidPair]
   type SizedBlock = (Block, UInt)
 
-  def slice(in: Seq[SizedBlock]) {
+  def slice(in: Seq[SizedBlock]) = {
     // A function that apply "|" on two valid data pack
     val or_valid = (a: Block, b: Block) => {
       val valid = (a zip b) map _._1 | _._1
