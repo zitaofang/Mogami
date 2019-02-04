@@ -40,7 +40,7 @@ object QueueEntry {
 // during the Rename Table Flush. The same machenism can be used
 // to achieve bank switching, but RISC-V does not support it at this time.
 // (Actually there is four copies of the data in one bank)
-class RegFileRawRAM extends Module {
+class RegFileRAM extends Module {
   val io = IO(new Bundle() {
     val read_bank = UInt(1.W)
     val read_addr = Input(Vec(4, new Operand()))
@@ -71,7 +71,7 @@ class RegFileRawRAM extends Module {
   }
 }
 // The bank control circuit
-class RegFileRAM(i: Int) extends Module {
+class RegFileBank(i: Int) extends Module {
   val io = IO(new Bundle() {
     // The global ready bit: it depends on other banks' states
     // rather than the RegFile input.
@@ -79,10 +79,11 @@ class RegFileRAM(i: Int) extends Module {
     // The local ready bits.
     val local_ready = Output(Bool())
     val read_in = Vec(4, Vec(3, Flipped(Valid(new Operand()))))
-
+    val read_out = Vec(4, Vec(3, Valid(new Operand())))
+    // the output ready bit
   })
 
-  val core = Module(new RegFileRawRAM())
+  val core = Module(new RegFileRAM())
 
   // ===========================
   // Read address control
@@ -181,10 +182,27 @@ class RegFileRAM(i: Int) extends Module {
   // The output of RAM will be put into the entry the pointer pointing to
   val data_queue = (0 until 3) map
     RegEnable(core.io.read_data, data_queue_p(_))
-  // mask the valid bit, then decompress it
-  val masked_data = (data_queue flatMap _) map c => {
-    val res = Wire()
-  }
+  // Decompress the output based on the index in the tag field
+  // First, mask the tag field, and extract index
+  val (masked_data, data_index) = ((data_queue flatMap _) map c => {
+    val md = Wire(Valid(new Operand()))
+    val id = Wire(UInt(4.W))
+    md.valid := c.valid
+    md.bits.value := c.bits.value
+    md.bits.fp_flag := c.bits.fp_flag
+    md.bits.present := true.B
+    md.bits.tag := UInt(10.W)
+    id := c.bits.tag(3, 0)
+    (md, id)
+  }).unzip
+  // Then, run through decompressor
+  val decompressed = DecompressValid(masked_data, data_index)
+  // and assign them to the io ports
+  io.read_out <> RegNext(VecInit((decompressed grouped 4) map VecInit(_)))
+
+  // ==========================================
+  // Write control
+
 }
 
 // The associated free entry list
@@ -227,12 +245,31 @@ class RegFile extends Module {
 
   val banks = (0 until 4) map Module(new RegFileBank())
   val free_lists = (0 until 4) map Module(new RegBankFreeList())
+
   // A global ready bit
-  val ready_bits = Wire(Vec(4, Bool()))
-  val ready = ready_bits.orR
-
-  for (i <- 0 until 4) {
-
+  val local_ready = Wire(Vec(4, Bool()))
+  val ready = local_ready.orR
+  // Connect ready bits
+  (bank zip local_ready) map (b, r) => {
+    r := b.io.local_ready
+    b.io.global_ready := ready
   }
+
+  // Connect the read ports
+  val bank_read_out = banks map b => {
+    b.io.read_in <> io.read_in
+    b.io.read_out
+  }
+  // Mux the bank output
+  val reg_read_out = Mux1H(bank_read_out map o => (o.valid, o.bits))
+
+  // Masked those input operands that reqires a register read so
+  // that it will not be selected at the end of the reg read
+  val masked_in = io.read_in map in => {
+    val read_en = in.valid & in.bits.present & in.bits.tag(9)
+    Mux(read_en, FillZero(Valid(new Operand())), in)
+  }
+  // Delay the masked input until the operands from the RAM are ready
+  Pipe(true.B, masked_in, 3)
 
 }

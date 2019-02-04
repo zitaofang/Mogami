@@ -56,5 +56,28 @@ class DecompressValid[T <: Data](width_exp: Int, t: T) extends Module {
     block_map flatMap _
   }
 
-  
+  // Format the input
+  val initial = (io.in map a => (a.valid, a.bits)) zip io.in_index
+  // Fold it through
+  val result = (initial /: (0 until width_exp))(slice(_))
+  // assign them to the output
+  (result zip io.out) map (pair, out) => {
+    out.valid := pair._1._1
+    out.bits := pair._1._2
+  }
+}
+object DecompressValid {
+  def apply[T <: Data](in: Vec[Valid[T]], index: Vec[UInt], t: T) = {
+    // Pad
+    val level = log2ceil(in.length)
+    val padded_in = in.padTo(math.pow(2, level).toInt, Wire(Valid(t)))
+    val padded_index = in.padTo(math.pow(2, level).toInt,
+      0.U(index(0).getWidth.W))
+
+    val core = Module(new DecompressValid(padded_in.length, t))
+    core.io.in <> padded_in
+    core.io.in_index <> padded_index
+
+    core.io.out take in.length
+  }
 }
