@@ -34,7 +34,9 @@ class MicroOps extends Bundle {
   val micro_tag = UInt(10.W)
   // The functional unit it is going to
   val fu_sel = UInt(3.W)
-  // Operand 0 - 2
+  // Operand 0 - 2.
+  // Before operand insertion stage, all of its fields are 0.
+  // If the present bit is 0, this operand is not valid.
   val src = Vec(3, new Operand())
   // The write-back register address. If the lowest two bits of micro_tag
   // is set, this field is invalid, because a intermediate micro-ops doesn't
@@ -72,6 +74,8 @@ class Main extends Module {
     val cdb = Vec(4, Flipped(Irrevocable(new CDBInterface())))
   })
 
+  // <<<<<<<<<<< BEGINNING OF DISPATCH FLOW >>>>>>>>>>>>
+
   // Decode the instruction
   val decode_core = Module(new Decode())
   decode_core.io.in := io.inst
@@ -104,7 +108,42 @@ class Main extends Module {
   dependency_core.io.write := arch_dst
   val rename_write_en = dependency_core.io.rename_en
 
-  // +++++++++++++ Pipeline Stage +++++++++++++++
-  // Read register, which may take at most 3 cycles
+  // ============= Dispatch Inst =============
+  // (Here, dispatch to ROB; it only needs the writeback info)
+  // At this time, only the lowest two bits of the uop# are set.
+  // This step assign the higher 8 bits of uop# with the inst#, and put
+  // the instructions into the ROB.
+  val rob = Module(new ROB())
 
+
+  // +++++++++++++ Pipeline Stage +++++++++++++++
+  // ============= Read Register ==============
+  // which may take at most 5 cycles (3 cycles can be pipelined)
+  val reg_file = Module(new RegFile())
+  reg_file.io.read_in := RegEnable(resolved_read, reg_file.io.ready)
+  val operands = reg_file.io.read_out
+
+  // Pipeline uops (3 + 1)
+  val pipe_uops = Pipe(reg_file.io.ready, uops, 4)
+
+  // ============= Set Operands ==============
+  // Set the operand fields for all instructions
+  pipe_uops map uop => {
+
+  }
+
+  // +++++++++++++ Pipeline Stage +++++++++++++++
+  // ============= Dispatch uops =============
+  // (Here, dispatch to the actual pipeline)
+  // A buffer holds the complete micro-ops. It
+
+  // <<<<<<<<<<< END OF DISPATCH FLOW >>>>>>>>>>>>
+
+  // <<<<<<<<<<< BEGINNING OF COMPLETION FLOW >>>>>>>>>>>>
+
+  // <<<<<<<<<<< END OF COMPLETION FLOW >>>>>>>>>>>>
+
+  // <<<<<<<<<<< BEGINNING OF COMMIT FLOW >>>>>>>>>>>>
+
+  // <<<<<<<<<<< END OF COMMIT FLOW >>>>>>>>>>>>
 }

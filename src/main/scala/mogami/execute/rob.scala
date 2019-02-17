@@ -19,7 +19,11 @@ class CompletionBundle extends Bundle {
 // One bank has 64 entries.
 class ROBBank(num: Int) extends Module {
   val io = IO(new Bundle() {
+    // Dispatch port
     val dispatch = Flipped(Irrevocable(new ROBLine()))
+    // The higher 6 bits of the inst#, valid when dispatch.ready is true
+    val inst_no = Output(UInt(6.W))
+
     val commit = Irrevocable(new ROBLine())
 
     // Instruction completion
@@ -38,6 +42,8 @@ class ROBBank(num: Int) extends Module {
   val head = RegInit(0.U(6.W))
   val tail = RegInit(0.U(6.W))
   val head_after_tail = RegInit(Bool())
+  // Assign the head index as inst#
+  io.inst_no := head
 
   // The memory entries
   val mem_entries = Mem(64, new ROBLine())
@@ -118,6 +124,7 @@ object ROBRotator {
 class ROB extends Module {
   val io = IO(new Bundle() {
     val dispatch = Vec(4, Flipped(Irrevocable(new ROBLine())))
+    val inst_no = Vec(4, Output(UInt(8.W)))
     val commit = Vec(4, Irrevocable(new ROBLine()))
     val completion = Vec(4, Flipped(Vaild(new CompletionBundle())))
 
@@ -150,4 +157,7 @@ class ROB extends Module {
   val rotated = ROBRotator(compressed, dispatch_head)
   // Connect the rotated values to the banks
   (banks zip rotated) map (_io.dispatch <> _)
+
+  // attach the lower 2 bit to inst# and decompress it
+
 }

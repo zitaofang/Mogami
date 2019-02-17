@@ -205,35 +205,6 @@ class RegFileBank(i: Int) extends Module {
 
 }
 
-// The associated free entry list
-class RegBankFreeList extends Module {
-  val io = IO(new Bundle() {
-    val flush_req = Irrevocable(DontCare)
-    val alloc_reg = Irrevocable(UInt(6.W))
-    val free_reg = Filpped(Irrevocable(UInt(6.W)))
-  })
-
-  // Once the reset signal from the Rename Flush Controller
-  // arrives, reset all state elements.
-  withReset(reset.toBool() | io.flush_req.ready) {
-    // Used for reset; If the MSB (bit 6) is not set, this list
-    // has been reset, and it should supply the value of this counter
-    // instead of the queue output
-    val list_reset = Wire(Bool())
-    val (reset_counter, wrapped) = Counter(~list_reset, 64)
-    list_reset := wrapped
-
-    // The queue
-    val queue_input = Filpped(Irrevocable(UInt(6.W)))
-    queue_input <> io.free_reg
-    val queue_output = Irrevocable(UInt(6.W))
-    queue_output <> Queue.irrecovable(queue_input, 32)
-
-    // FLush the rename table if one queue become empty or full
-    io.flush_req.valid := ~queue_output.valid | queue_input.ready
-  }
-}
-
 // The register file component
 class RegFile extends Module {
   val io = IO(new Bundle() {
@@ -244,11 +215,11 @@ class RegFile extends Module {
   })
 
   val banks = (0 until 4) map Module(new RegFileBank())
-  val free_lists = (0 until 4) map Module(new RegBankFreeList())
 
   // A global ready bit
   val local_ready = Wire(Vec(4, Bool()))
   val ready = local_ready.orR
+  io.ready := ready
   // Connect ready bits
   (bank zip local_ready) map (b, r) => {
     r := b.io.local_ready
@@ -265,11 +236,19 @@ class RegFile extends Module {
 
   // Masked those input operands that reqires a register read so
   // that it will not be selected at the end of the reg read
-  val masked_in = io.read_in map in => {
+  val present_in = io.read_in map in => {
     val read_en = in.valid & in.bits.present & in.bits.tag(9)
     Mux(read_en, FillZero(Valid(new Operand())), in)
   }
   // Delay the masked input until the operands from the RAM are ready
-  Pipe(true.B, masked_in, 3)
+  val delayed_present_in = present_in map Pipe(ready, _, 3)
+  // Now, if the entry in present_in is valid, use the current value
+  // otherwise, select the corresponding register read output
+  for (i <- 0 until 12) {
+    io.read_out(i) := Mux(delayed_present_in(i).valid,
+      delayed_present_in(i),
+      reg_read_out(i)
+    )
+  }
 
 }

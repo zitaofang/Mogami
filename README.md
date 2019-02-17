@@ -42,3 +42,10 @@ FPU and integer ALU are highly integrated, and it is impossible to disable FPU o
 - Fused Multiply-Add Unit: Process all fused multiply-add, add, and multiply (for both integer and FP) operations. FP conversions also use this unit. The only FP rounder is in this component.
 
 There are four register banks per CPU, each with 64 entries that can be used as either FP or integer register. Each entry has 72 bits, with high 8 bits as floating point flag field (see `/docs/internal_repr.md`). Every bank has four read ports and one write port (corresponding to one CDB bus); if more than four operands in the instruction pack being decoded are supplied by one bank, the pipeline will stall until the conflict is resolved.
+
+## Bibliography
+
+[1] Sollya: an environment for the development of numerical codes.
+  S. Chevillard, M. Joldeș and C. Lauter.
+  In Mathematical Software - ICMS 2010, pages 28-31, Heidelberg, Germany, September 2010. Springer.
+[2] 

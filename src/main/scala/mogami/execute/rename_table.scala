@@ -3,13 +3,19 @@ package mogami.execute
 import chisel3._
 import chisel3.util._
 
+// There are two rename tables: one is for decoding (read and written by the
+// encoder) and another for committing (written only if an instruction is
+// committed).
+// If there is a trap or misprediction, copy the commit table to the
+// decode table.
+
 // The interface to decoder
 class RenameDecodePort extends Bundle {
   val write_en = Input(Vec(4, Bool()))
   val write_addr = Input(Vec(4, UInt(6.W)))
   val write_val = Input(Vec(4, UInt(8.W)))
-  val read_addr = Input(Vec(4, Vec(3, new Operand())))
-  val read_val = Output(Vec(4, Vec(3, new Operand())))
+  val read_addr = Input(Vec(4, Vec(3, Valid(new Operand()))))
+  val read_val = Output(Vec(4, Vec(3, Valid(new Operand()))))
 }
 
 // The interface to ROB
@@ -61,9 +67,18 @@ class DecodeRenameTable extends Module {
     val port = new RenameDecodePort()
   })
 
-  val entry_mat = (0 until 64) map i =>
-    RenameTableEntry(i, io.port.write_en, io.port.write_addr, io.port.write_val,
-      io.flush, io.flush_value(i))
+  // Create the table
+  val entry_mat = for (i <- 0 until 64) {
+    val res = Module(new RenameTableEntry(i))
+    res.io.write_en := io.port.write_en
+    res.io.write_addr := io.port.write_addr
+    res.io.write_val := io.port.write_val
+    res.io.flush := io.flush
+    res.io.flush_val := io.flush_value(i)
+    res.io.value
+  }
+
+  // Select the output for each read port
   (io.port.read_val map io.port.read_addr) map _ := MultiMux(_, entry_mat)
 }
 
