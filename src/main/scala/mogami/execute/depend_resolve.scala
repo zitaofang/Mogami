@@ -7,7 +7,7 @@ import chisel3.util._
 class PackDependency(instIndex: UInt => UInt) extends Module {
   val io = IO(new Bundle() {
     val read = Input(Vec(4, Vec(3, Valid(new Operand()))))
-    val write = Input(Vec(4, UInt(6.W)))
+    val write = Input(Vec(4, Flipped(Valid(UInt(6.W)))))
     val read_out = Output(Vec(4, Vec(3, Valid(new Operand()))))
     val read_sel = Output(Vec(4, Vec(3, Bool())))
     val rename_en = Output(Vec(4, Bool()))
@@ -18,7 +18,8 @@ class PackDependency(instIndex: UInt => UInt) extends Module {
   def compareRead(index: Int, read_reg: UInt) = {
     // If any of equal_reg is true, the current operand depends on
     // some previous instructions
-    val equal_reg = Cat((0 until index) map read_reg === io.write(_))
+    val equal_reg = Cat(for (i <- 0 until index)
+      read_reg === io.write(i).bits & io.write(i).valid)
     // The instruction it is depends on is the last instruction that produce
     // the requested register; use priority encode to get it
     val enc_out = PriorityEncoder(Cat(0.U((4 - index).W), equal_reg))
@@ -41,12 +42,12 @@ class PackDependency(instIndex: UInt => UInt) extends Module {
   for (i <- 1 until 4) for (j <- 0 until 3)
     io.read_out(i)(j) := assignOut(i, j)
 
-  // If the write address is 0, then ignore it
+  // If the write address is 0, or it is invalid, then ignore it
   val write_en = io.write map _.orR
   // Compare and resolve WAW hazard by masking unused write to rename table
   // (Note that the results are still written to ROB in case of traps)
   def compareWrite(index: Int, write_reg: UInt) = {
-    val equal_reg = Cat((index until 3) map write_reg === io.write(_))
+    val equal_reg = Cat((index until 3) map write_reg === io.write(_).bits)
     equal_reg.orR
   }
   for (i <- 0 until 3)

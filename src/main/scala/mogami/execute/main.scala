@@ -74,9 +74,13 @@ class Main extends Module {
     val cdb = Vec(4, Flipped(Irrevocable(new CDBInterface())))
   })
 
+  // Stall bits; if any of them is set, stall the fetching.
+  val stall_bits = Wire(UInt(2.W))
+  for (inst <- io.inst) inst.ready := stall_bits.orR
+
   // <<<<<<<<<<< BEGINNING OF DISPATCH FLOW >>>>>>>>>>>>
 
-  // Decode the instruction
+  // ======== Decode instruction ==========
   val decode_core = Module(new Decode())
   decode_core.io.in := io.inst
   val uop = decode_core.io.uop
@@ -85,36 +89,58 @@ class Main extends Module {
   val arch_src = decode_core.io.src
   val arch_dst = decode_core.io.dst
 
-  // ======== Operand processing ==========
-  // Resolve the dependency
+  // ======== Resolve the dependency ==========
   val dependency_core = Module(new PackDependency())
   dependency_core.io.read := arch_src
   val depend_read = dependency_core.io.read_out
   val depend_sel = dependency_core.io.read_sel
 
-  // Check the rename table at the same time
+  // ======== Check the rename table ==========
   val rename_table = Module(new RenameTable())
   rename_table.io.decode_port.read_addr := arch_src
   val rename_read = rename_table.io.decode_port.read_val
 
-  // Select the read address
+  //  ======== Select the read address =========
+  // (for register read)
   val resolved_read = ((0 until 4) cross (0 until 3)) map (i, j) =>
     Mux(depend_sel(i)(j), depend_read(i)(j), rename_read(i)(j))
 
-  // ========== Writeback processing ==========
-  // Detect WAW hazard within one instruction pack. This will not
+  // ========== WAW Resolve ==========
+  // Detect WAW hazard within one instruction pack. WAW will not
   // affect writeback but will result in conflicting rename table
-  // write. Some write need to be suppressed.
+  // write. Some write to the rename table need to be suppressed.
   dependency_core.io.write := arch_dst
   val rename_write_en = dependency_core.io.rename_en
 
+  // ========== Free List Read ===========
+  // Note that the next free entries are available at the beginning of
+  // the cycle
+  val free_list = Module(new FreeList())
+  for (i <- 0 until 4)
+    free_list.io.alloc_reg(i).ready := arch_dst(i).valid
+  val alloc_reg = (0 until 4) map free_list.io.alloc_reg(_).bits
+  // If the free list has a pending flush request, we need to stall
+  // the fetching unit
+  stall_bits(0) := ~free_list.io.flush_req.valid
+
+  // (Update the Rename Table used by the decoder)
+  rename_table.decode_port.write_en := rename_write_en
+  rename_table.decode_port.write_addr := arch_dst
+  rename_table.decode_port.write_val := alloc_reg
+
   // ============= Dispatch Inst =============
-  // (Here, dispatch to ROB; it only needs the writeback info)
+  // (Here, dispatch to ROB; ROB only needs the writeback info)
   // At this time, only the lowest two bits of the uop# are set.
   // This step assign the higher 8 bits of uop# with the inst#, and put
   // the instructions into the ROB.
   val rob = Module(new ROB())
-
+  for (i <- 0 until 4) {
+    // Set input ROBLine and valid bit
+    rob.io.dispatch(i).bits := ROBLine(RegNext(arch_dst(i)), alloc_reg(i))
+    rob.io.dispatch(i).valid := inst(i).valid
+    // Generate 10b inst#
+    uop(i).micro_tag(7, 0) := rob.io.inst_no(i)
+  }
 
   // +++++++++++++ Pipeline Stage +++++++++++++++
   // ============= Read Register ==============
@@ -126,14 +152,16 @@ class Main extends Module {
   // Pipeline uops (3 + 1)
   val pipe_uops = Pipe(reg_file.io.ready, uops, 4)
 
+  // +++++++++++++ Pipeline Stage +++++++++++++++
   // ============= Set Operands ==============
-  // Set the operand fields for all instructions
+  // Set the operand fields for all instructions. RegFile will preserve
+  // immediate operands and operands that depends on other insts, so we
+  // can just take whatever in "val operands".
   pipe_uops map uop => {
-
+    
   }
 
-  // +++++++++++++ Pipeline Stage +++++++++++++++
-  // ============= Dispatch uops =============
+  // ============= Enqueue uops =============
   // (Here, dispatch to the actual pipeline)
   // A buffer holds the complete micro-ops. It
 

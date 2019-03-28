@@ -8,6 +8,14 @@ class ROBLine extends Bundle {
   val write_reg = UInt(6.W)
   val write_rename = UInt(8.W)
 }
+object ROBLine {
+  def apply(write_reg: UInt, write_rename: UInt) = {
+    val res = Wire(new ROBLine())
+    res.write_reg := write_reg
+    res.write_rename := write_rename
+    res
+  }
+}
 
 // The completion port data bundle
 class CompletionBundle extends Bundle {
@@ -106,15 +114,21 @@ class ROBBank(num: Int) extends Module {
 
 // The ROB rotator
 object ROBRotator {
-  class Slice(level: Int, in: SlicePort[ROBLine], shift: Bool)
+  class Slice(level: Int, in: SlicePort[ROBLine], shift: Bool, forward: Bool)
   extends RotatorSlice[ROBLine] {
     override def mux_func = Mux(_, _, _)
     override def block_size = math.pow(2, level).intValue
-    override def to_right = false.B
+    override def to_right = ~forward
   }
-  def apply(in: Seq[ROBLine], shamt: UInt) = {
+  def forward(in: Seq[ROBLine], shamt: UInt) = {
     val slice = (level: Int) => (in: SlicePort[ROBLine]) =>
-      new Slice(level, in, shamt(level)).result
+      new Slice(level, in, shamt(level), true.B).result
+    val tree = (0 until 2) map slice(_)
+    (new SliceSimplePort(in) /: tree)(a, f => f(a)).data
+  }
+  def backward(in: Seq[ROBLine], shamt: UInt) = {
+    val slice = (level: Int) => (in: SlicePort[ROBLine]) =>
+      new Slice(level, in, shamt(level), false.B).result
     val tree = (0 until 2) map slice(_)
     (new SliceSimplePort(in) /: tree)(a, f => f(a)).data
   }
@@ -131,6 +145,10 @@ class ROB extends Module {
     // Pulling this pin to high will trigger a reset to flush the pipeline
     val exception = Output(Bool())
     val stall = Output(Bool())
+
+    // When this bits is 1, the pipeline is cleared, and any trap or
+    // misprediction resolving process can be started.
+    val rob_clear = Output(Bool())
   })
   // Four banks
   val banks = (0 until 4) map Module(new ROBBank(_))
@@ -145,19 +163,19 @@ class ROB extends Module {
   // Connect commit ports
   (io.commit zip banks) map _ <> _.io.commit
 
-  // Compress and order the dispatched instructions
   // This register marks which bank the first instruction should go to
   val dispatch_head = RegInit(0.U(2.W))
-  // The higher 6 bits of the next available inst#
-  val next_inst = RegInit(0.U(6.W))
-  val next_init_c = QuickPlusOne(next_inst)
-  // Compress the input instruction
-  val compressed = CompressValid(io.commit)
+
   // Rotate the instructions to align the head
-  val rotated = ROBRotator(compressed, dispatch_head)
+  val rotated = ROBRotator.forward(io.dispatch, dispatch_head)
   // Connect the rotated values to the banks
   (banks zip rotated) map (_io.dispatch <> _)
+  // Update the dispatch head; + # of inst (already compressed)
+  dispatch_head := dispatch_head + PriorityEncoder(io.dispatch map _.valid)
 
-  // attach the lower 2 bit to inst# and decompress it
-
+  // attach the lower 2 bit to inst# and rotate it back
+  val inst_no_raw = for (i <- 0 until 4) {
+    banks(i).io.inst_no ## i.U(2.W)
+  }
+  io.inst_no := ROBRotator.backward(inst_no_raw, dispatch_head)
 }

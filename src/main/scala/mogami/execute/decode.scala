@@ -55,7 +55,7 @@ class Decode extends Module {
     val in = Input(Vec(4, UInt(32.W)))
     val uop = Output(Vec(16, new MicroOps()))
     val src = Output(Vec(4, Vec(3, Valid(new Operand()))))
-    val dst = Output(Vec(4, UInt(6.W)))
+    val dst = Output(Vec(4, Valid(UInt(6.W))))
   })
   // Extract Operand
   def extractOperand(inst: UInt) = {
