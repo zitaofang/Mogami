@@ -3,13 +3,24 @@ package mogami.execute
 import chisel3._
 import chisel3.util._
 
-// Check dependency within the pack
+// Check dependency within the pack.
+// This module shall has less than 1 cycle delay.
+// instIndex: A function that returns the queue index that the instuction should
+// be stored by adding the current top of the queue and the instructon offset
+// in the pack.
 class PackDependency(instIndex: UInt => UInt) extends Module {
   val io = IO(new Bundle() {
+    // The source operands of each instruction (imm or reg).
     val read = Input(Vec(4, Vec(3, Valid(new Operand()))))
+    // The destination register of each instruction.
     val write = Input(Vec(4, Flipped(Valid(UInt(6.W)))))
+    // The source operands after the RAW hazard within this pack
+    // is resolved.
     val read_out = Output(Vec(4, Vec(3, Valid(new Operand()))))
+    // The register read enable bits. True only if it does not depends
+    // on other inst in this pack, not imm, and not x0.
     val read_sel = Output(Vec(4, Vec(3, Bool())))
+    // Indicate a rename table entry needs to be modified.
     val rename_en = Output(Vec(4, Bool()))
   })
 

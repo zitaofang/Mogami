@@ -4,7 +4,7 @@ import chisel3._
 import chisel3.util._
 
 // Rename Table Flush controller, activated if a register bank
-// is full or empty. It will take 18 cycles to finish.
+// is full or empty. It will take 18-20 cycles to finish.
 // It has three-stage pipeline: RRRT (read RRT), RREG (read reg), WREG (write reg).
 // It will reset the rename table to their initial value and move
 // data between corresponding physical register
@@ -40,7 +40,7 @@ class RenameFlushControl extends Module {
     Cat(finished, reg_counter) := Counter(32, flush_req.valid)._1
   }
 
-  // Send deactivation signal when WREG of the last cycle begins
+  // Send deactivation signal when WREG of the last cycle begins.
   // RRT will be reset when ready is high.
   io.flush_req.ready := RegNext(finished)
 

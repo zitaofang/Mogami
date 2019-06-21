@@ -80,10 +80,14 @@ class RegFileBank(i: Int) extends Module {
     val local_ready = Output(Bool())
     val read_in = Vec(4, Vec(3, Flipped(Valid(new Operand()))))
     val read_out = Vec(4, Vec(3, Valid(new Operand())))
-    // the output ready bit
+
+    val write_in = Flipped(Valid(new RegWritePack()))
   })
 
   val core = Module(new RegFileRAM())
+
+  // Setting up bank and flush
+
 
   // ===========================
   // Read address control
@@ -202,7 +206,9 @@ class RegFileBank(i: Int) extends Module {
 
   // ==========================================
   // Write control
-
+  core.io.write.bits.addr := write_in.bits.addr
+  core.io.write.bits.data := write_in.bits.value
+  core.io.write.valid := write_in.valid & write_in.bits.write_en
 }
 
 // The register file component
@@ -211,7 +217,7 @@ class RegFile extends Module {
     val ready = Output(Bool())
     val read_in = Vec(4, Vec(3, Flipped(Valid(new Operand()))))
     val read_out = Vec(4, Vec(3, Valid(new Operand())))
-    val write = Vec(4, Flipped(Valid(new WritePack())))
+    val write = Vec(4, Flipped(Valid(new RegWritePack())))
   })
 
   val banks = (0 until 4) map Module(new RegFileBank())
@@ -251,4 +257,9 @@ class RegFile extends Module {
     )
   }
 
+  // =====================================
+  // Connect write wire
+  for (i <- 0 until 4) {
+    banks(i).io.write_in <> io.write(i)
+  }
 }

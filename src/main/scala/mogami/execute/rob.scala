@@ -17,12 +17,6 @@ object ROBLine {
   }
 }
 
-// The completion port data bundle
-class CompletionBundle extends Bundle {
-  val addr = UInt(8.W)
-  val exception = Bool()
-}
-
 // The ROB bank; there are 4 in total.
 // One bank has 64 entries.
 class ROBBank(num: Int) extends Module {
@@ -35,7 +29,7 @@ class ROBBank(num: Int) extends Module {
     val commit = Irrevocable(new ROBLine())
 
     // Instruction completion
-    val completion = Vec(4, Flipped(Vaild(new CompletionBundle())))
+    val completion = Vec(4, Flipped(Vaild(new ROBCompletePack())))
 
     // Report to the Controller that the instruction in this bank raise an
     // exception
@@ -92,7 +86,7 @@ class ROBBank(num: Int) extends Module {
   // Update head_after_tail
   head_after_tail := head_after_tail ^ dispatch_flip ^ commit_flip
 
-  // Set exception and comple bits
+  // Set exception and completion bits
   val completion_mask = io.completion map (c =>
     UIntTo1H(c.bits.address(5, 0)) &
       Fill(64, c.valid & c.bits.address(7, 6) === num.U(2.W))
@@ -140,7 +134,7 @@ class ROB extends Module {
     val dispatch = Vec(4, Flipped(Irrevocable(new ROBLine())))
     val inst_no = Vec(4, Output(UInt(8.W)))
     val commit = Vec(4, Irrevocable(new ROBLine()))
-    val completion = Vec(4, Flipped(Vaild(new CompletionBundle())))
+    val completion = Vec(4, Flipped(Vaild(new ROBCompletePack())))
 
     // Pulling this pin to high will trigger a reset to flush the pipeline
     val exception = Output(Bool())

@@ -17,11 +17,20 @@ class Operand extends Value {
   // Before the register read, the present is 0 for those to be supplied
   // by another instruction, 1 otherwise.
   val present = Bool()
-  // If the operand does not present, this field is valid and holds the
-  // instruction tag of that will produce the operand.
-  // Before the register read stage, this field hold the physical
-  // register address in the lower 8 bits (the upper 2 bits are all 1)
-  // if present it 1. If it is an immediate, this field is cleared.
+  // For any operands after the decode stage:
+    // If the operand does not present, this field is valid and holds the
+    // instruction tag of that will produce the operand.
+  // For Macro-ops operands during the decode stage:
+    // Before the register read stage, this field hold the physical
+    // register address in the lower 8 bits (the upper 2 bits are all 1)
+    // if present it 1. If it is an immediate, this field is cleared.
+  // For Micro-ops operands during the decode stage:
+    // If present is true, the operand will be supplied by the normal
+    // macro-ops operands. The lower two bits will be the # of operands
+    // in the operand processing flow (rs1, rs2, rs3, ...)
+    // If present is false, the operand depends on the uops preceding
+    // it in the pack decoded from the current macro-ops. The lower two
+    // bits are the uops # in the pack.
   val tag = UInt(10.W)
   // If the operand presents, these two inherited fields hold the value.
 }
@@ -38,29 +47,36 @@ class MicroOps extends Bundle {
   // Before operand insertion stage, all of its fields are 0.
   // If the present bit is 0, this operand is not valid.
   val src = Vec(3, new Operand())
-  // The write-back register address. If the lowest two bits of micro_tag
-  // is set, this field is invalid, because a intermediate micro-ops doesn't
-  // need to write back.
+  // The write-back register address and enable bit
+  val dst_enable = Bool()
   val dst = UInt(8.W)
   // The functional unit flag
   val flag = UInt(4.W)
 }
 
 // Writeback pack
-class WritePack extends Bundle {
+class RegWritePack extends Bundle {
   // The actual value
   val value = new Value()
   // The physical address it is writing to.
-  // The bank address is omitted for one bus corresponds to one bank.
+  // The bank address is omitted, for one bus corresponds to one bank.
   val addr = UInt(6.W)
+  // Write enable bit (some uops doesn't write register)
+  val write_en = Bool()
+}
+
+// The completion port data bundle
+class ROBCompletePack extends Bundle {
+  // The micro-ops tag. Leftmost two bits (Bank index) are ignored
+  val micro_tag = UInt(8.W)
+  // The exception bits.
+  val except = Bool()
 }
 
 // The CDB interface
-class CDBInterface extends WritePack {
-  // The micro-ops tag.
-  val micro_tag = UInt(10.W)
-  // The exception bits.
-  val except = Bool()
+class CDBInterface extends Bundle {
+  val reg_pack = new RegWritePack()
+  val rob_pack = new ROBCompletePack()
 }
 
 // The main module for execute unit.
@@ -124,9 +140,9 @@ class Main extends Module {
   stall_bits(0) := ~free_list.io.flush_req.valid
 
   // (Update the Rename Table used by the decoder)
-  rename_table.decode_port.write_en := rename_write_en
-  rename_table.decode_port.write_addr := arch_dst
-  rename_table.decode_port.write_val := alloc_reg
+  rename_table.io.decode_port.write_en := rename_write_en
+  rename_table.io.decode_port.write_addr := arch_dst
+  rename_table.io.decode_port.write_val := alloc_reg
 
   // ============= Dispatch Inst =============
   // (Here, dispatch to ROB; ROB only needs the writeback info)
@@ -157,21 +173,103 @@ class Main extends Module {
   // Set the operand fields for all instructions. RegFile will preserve
   // immediate operands and operands that depends on other insts, so we
   // can just take whatever in "val operands".
-  pipe_uops map uop => {
-    
+  for (i <- 0 until 16) {
+    pipe_uops(i).src map src_op =>
+      when (src_op.present) {
+        src_op := operands(i / 4)(src_op.tag(1, 0))
+      } .otherwise {
+        src_op.tag(9, 2) := pipe_uops(i).micro_tag(9, 2)
+      }
   }
 
   // ============= Enqueue uops =============
   // (Here, dispatch to the actual pipeline)
-  // A buffer holds the complete micro-ops. It
+  // A buffer holds the complete micro-ops.
+  // Compress input
+  val compressed_uops =
+    CompressValid(pipe_uops, new MicroOps()) grouped 8
+  // A queue
+  val dispatch_ready = Wire(Vec(4, Bool()))
+  for (i <- 0 until 8) {
+    // Prepare queue input
+    val dispatch_queue_in = IrrevocableIO(Vec(2, new MicroOps()))
+    dispatch_queue_in.valid := (false.B /: compressed_uops(i)) (_|_)
+    dispatch_queue_in.bits := compressed_uops map _.bits
+    dispatch_ready(i) := dispatch_queue_in.ready
+
+    // Use a flag bits to delay the removal of queue data or
+    // invalidated uops that's received by a reservation station
+    val dispatch_queue_out = IrrevocableIO(new MicroOps())
+    dispatch_queue_out <> Queue(dispatch_queue_in, 4)
+    // If the flag is set, the uop with lower index is dispatched.
+    // The flag cannot be set if the queue output valid bit is not high.
+    val queue_flag = RegInit(false.B)
+    // Connect the bits output to the IO port, muxed by the flags
+    io.dispatch_bus(i).bits := dispatch_queue_out.bits(queue_flag)
+    // If the queue has data ready...
+    when (dispatch_queue_out.valid) {
+      // And a reservation station says it will take the uop...
+      when (io.dispatch_bus(i).ready) {
+        // And the second uop is valid...
+        
+        // Flip the flag; if flag is low, first uop not yet sent;
+        // if flag is high, move to the next queue entry
+        queue_flag := ~queue_flag
+      }
+    }
+    // If the uop is taken, its valid bit should be masked.
+    io.dispatch_bus(i).valid :=
+    // If both uops are taken by some stations, move on to the next line
+    dispatch_queue_out.ready := queue_flag.andR
+    when (queue_flag.andR) {
+      queue_flag := 0.U(2.W)
+    }
+  }
 
   // <<<<<<<<<<< END OF DISPATCH FLOW >>>>>>>>>>>>
 
   // <<<<<<<<<<< BEGINNING OF COMPLETION FLOW >>>>>>>>>>>>
 
+  // Connect to ROB
+  rob.io.completion := io.cdb map bus => {
+    val rob_pack = Wire(Valid(new ROBCompletePack()))
+    rob_pack.bits := bus.bits.rob_pack
+    rob_pack.valid := bus.valid
+    rob_pack
+  }
+
+  // Write to RegFile
+  reg_file.io.write := io.cdb map bus => {
+    val reg_pack = Wire(Valid(new RegWritePack()))
+    reg_pack.bits := bus.bits.reg_pack
+    reg_pack.valid := bus.valid
+    reg_pack
+  }
+
   // <<<<<<<<<<< END OF COMPLETION FLOW >>>>>>>>>>>>
 
   // <<<<<<<<<<< BEGINNING OF COMMIT FLOW >>>>>>>>>>>>
+
+  // ROB initiates a commit; modify rename table
+  val commit_wire = Wire(new RenameROBPort())
+  for (i <- 0 until 4) {
+    commit_wire.write_en(i) := rob.io.commit(i).valid
+    commit_wire.write_addr(i) := rob.io.commit(i).bits.write_reg
+    commit_wire.write_val(i) := rob.io.commit(i).bits.write_rename
+  }
+  rename_table.io.rob_port <> commit_wire
+
+  // ++++++++++ Pipeline Stage +++++++++++++
+  // Release the regfile rename entry
+  for (i <- 0 until 4) {
+    free_list.io.free_reg(i).valid := RegNext(commit_wire.write_en(i))
+    free_list.io.free_reg(i).bits := commit_wire.free_addr
+  }
+
+  // Exception handling
+  // If an exception is detected, flush rename table, decode pipeline.
+  // The, notify the fetching and execution stages with a signal.
+  rename_table.io.flush := rob.io.exception
 
   // <<<<<<<<<<< END OF COMMIT FLOW >>>>>>>>>>>>
 }
