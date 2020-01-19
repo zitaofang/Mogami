@@ -6,7 +6,7 @@ import chisel3.util._
 // Check dependency within the pack.
 // This module shall has less than 1 cycle delay.
 // instIndex: A function that returns the queue index that the instuction should
-// be stored by adding the current top of the queue and the instructon offset
+// be stored at by adding the current top of the queue and the instructon offset
 // in the pack.
 class PackDependency(instIndex: UInt => UInt) extends Module {
   val io = IO(new Bundle() {

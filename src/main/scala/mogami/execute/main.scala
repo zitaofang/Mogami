@@ -11,20 +11,20 @@ class Value extends Bundle {
 
 // The operand. See below for the encoding.
 // WARNING: The rules below are the general encoding and does not cover
-// the encoding used within RegFile module. See that class for its usage
-// in RegFile module.
+// the encoding used within RegFile module. See regfile.scala for the usage
+// of this data type in RegFile module.
 class Operand extends Value {
   // Before the register read, the present is 0 for those to be supplied
   // by another instruction, 1 otherwise.
   val present = Bool()
-  // For any operands after the decode stage:
+  // For any operands AFTER the decode stage:
     // If the operand does not present, this field is valid and holds the
     // instruction tag of that will produce the operand.
-  // For Macro-ops operands during the decode stage:
+  // For Macro-ops operands DURING the decode stage:
     // Before the register read stage, this field hold the physical
     // register address in the lower 8 bits (the upper 2 bits are all 1)
-    // if present it 1. If it is an immediate, this field is cleared.
-  // For Micro-ops operands during the decode stage:
+    // if "present" is 1. If it is an immediate, this field is cleared.
+  // For Micro-ops operands DURING the decode stage:
     // If present is true, the operand will be supplied by the normal
     // macro-ops operands. The lower two bits will be the # of operands
     // in the operand processing flow (rs1, rs2, rs3, ...)
@@ -211,7 +211,7 @@ class Main extends Module {
       // And a reservation station says it will take the uop...
       when (io.dispatch_bus(i).ready) {
         // And the second uop is valid...
-        
+
         // Flip the flag; if flag is low, first uop not yet sent;
         // if flag is high, move to the next queue entry
         queue_flag := ~queue_flag
