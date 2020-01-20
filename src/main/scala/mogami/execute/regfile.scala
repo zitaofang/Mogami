@@ -20,7 +20,7 @@ object ReadAddr {
   def empty = apply(0.U(6.W), 0.U(4.W))
 }
 // The definition of queue entry of the read request queue
-type QueueEntry = Valid[Vec[ReadAddr]]
+class QueueEntry extends Valid[Vec[ReadAddr]]
 object QueueEntry {
   def apply() = Valid(Vec(3, new ReadAddr()))
   def apply(valid: Bool, bits: Vec[ReadAddr]) = {
@@ -53,7 +53,7 @@ class RegFileRAM extends Module {
   })
 
   val mems = (0 until 4) map SyncReadMem(64, UInt(72.W))
-  (mems zip io.read_addr zip io.read_data) map (m, r, o) => {
+  (mems zip io.read_addr zip io.read_data) map ((m, r, o) => {
     // Set up register read
     // Special encoding of Operand() is used. See the top of the page
     // for comments.
@@ -68,7 +68,7 @@ class RegFileRAM extends Module {
 
     // Write.
     m.write(Cat(io.write.bank, io.write.addr), io.write.data)
-  }
+  })
 }
 // The bank control circuit
 class RegFileBank(i: Int) extends Module {
@@ -95,7 +95,7 @@ class RegFileBank(i: Int) extends Module {
   // Concatenate read_in into one-dimension array
   val read_in_cat = (io.read_in flatMap _).zipWithIndex
 
-  val filtered = read_in_cat map (req, ind) => {
+  val filtered = read_in_cat map ((req, ind) => {
     // To keep the interface simple, I will still use Operand class
     // here, but there will be some modification:
     // 1. "present" bit is now the valid bits.
@@ -121,13 +121,13 @@ class RegFileBank(i: Int) extends Module {
 
     // Output, with a copy of valid bit
     (valid, filtered_val)
-  }
+  })
 
   // Compress accesses
   val compress_out = CompressValid(filtered, FillZero(new Operand()))
   // Grouped compressor output into 3 groups so that it can
   // fit into the queue
-  val grouped_compressed = (compress_out grouped 4) map g => {
+  val grouped_compressed = (compress_out grouped 4) map (g => {
     val ret = Wire(Valid(Vec(4, new Operand())))
     // Reduce-or all valid bits in this group as the entry valid bit
     ret.valid := (g map _._1) reduceLeft (_ | _)
@@ -135,7 +135,7 @@ class RegFileBank(i: Int) extends Module {
     ret.bits := g map _._2
 
     ret
-  }
+  })
 
   // The queue with 3 entries
   val addr_queue = Vec(3, RegInit(
@@ -174,10 +174,10 @@ class RegFileBank(i: Int) extends Module {
   // RAM read
 
   // connect addresses to the RAM
-  (core.io.read_addr zip addr_queue(0)) map (ra, q) => {
+  (core.io.read_addr zip addr_queue(0)) map ((ra, q) => {
     ra.valid := q.valid
     ra.bits := q.bits
-  }
+  })
 
   // ===========================================
   // Read data control
@@ -188,7 +188,7 @@ class RegFileBank(i: Int) extends Module {
     RegEnable(core.io.read_data, data_queue_p(_))
   // Decompress the output based on the index in the tag field
   // First, mask the tag field, and extract index
-  val (masked_data, data_index) = ((data_queue flatMap _) map c => {
+  val (masked_data, data_index) = ((data_queue flatMap _) map (c => {
     val md = Wire(Valid(new Operand()))
     val id = Wire(UInt(4.W))
     md.valid := c.valid
@@ -198,7 +198,7 @@ class RegFileBank(i: Int) extends Module {
     md.bits.tag := UInt(10.W)
     id := c.bits.tag(3, 0)
     (md, id)
-  }).unzip
+  })).unzip
   // Then, run through decompressor
   val decompressed = DecompressValid(masked_data, data_index)
   // and assign them to the io ports
@@ -227,25 +227,25 @@ class RegFile extends Module {
   val ready = local_ready.orR
   io.ready := ready
   // Connect ready bits
-  (bank zip local_ready) map (b, r) => {
+  (bank zip local_ready) map ((b, r) => {
     r := b.io.local_ready
     b.io.global_ready := ready
-  }
+  })
 
   // Connect the read ports
-  val bank_read_out = banks map b => {
+  val bank_read_out = banks map (b => {
     b.io.read_in <> io.read_in
     b.io.read_out
-  }
+  })
   // Mux the bank output
-  val reg_read_out = Mux1H(bank_read_out map o => (o.valid, o.bits))
+  val reg_read_out = Mux1H(bank_read_out map (o => (o.valid, o.bits)))
 
   // Masked those input operands that reqires a register read so
   // that it will not be selected at the end of the reg read
-  val present_in = io.read_in map in => {
+  val present_in = io.read_in map (in => {
     val read_en = in.valid & in.bits.present & in.bits.tag(9)
     Mux(read_en, FillZero(Valid(new Operand())), in)
-  }
+  })
   // Delay the masked input until the operands from the RAM are ready
   val delayed_present_in = present_in map Pipe(ready, _, 3)
   // Now, if the entry in present_in is valid, use the current value

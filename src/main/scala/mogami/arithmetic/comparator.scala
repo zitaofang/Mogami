@@ -1,12 +1,14 @@
+package mogami.arithmetic
+
 import chisel3._
 import chisel3.util._
 import scala.math.pow
 
 // A comparator for both integer and FP comparison.
-class Comparator extends Module with BaseComparator {
+class Comparator extends Module {
   val io = IO(new Bundle{
-    val input = Input(FPPortIn)
-    val output = Output(FPPortOut)
+    val input = Input(new FPPortIn())
+    val output = Output(new FPPortOut())
   })
 
   // Some specification:
@@ -34,11 +36,11 @@ class Comparator extends Module with BaseComparator {
 
   // Align single precision
   val aligned_1 = Mux(~io.input.flags(2) && io.input.flags(1),
-    Cat(io.input.operand1(31:0), 0.U(32.W)),
+    Cat(io.input.operand1(31, 0), 0.U(32.W)),
     io.input.operand1
   )
   val aligned_2 = Mux(~io.input.flags(2) && io.input.flags(1),
-    Cat(io.input.operand2(31:0), 0.U(32.W)),
+    Cat(io.input.operand2(31, 0), 0.U(32.W)),
     io.input.operand2
   )
 
@@ -73,8 +75,8 @@ class Comparator extends Module with BaseComparator {
 
   // Detect FP corner case:
   // 1. zero - (+0 = -0), overwrite the LT/LE output with 0
-  val zero_lt_overwrite = io.input.operand1_fp(2) & io.input.operand2_fp(2)
-    & io.input.flags(0)
+  val zero_lt_overwrite = io.input.operand1_fp(2) & io.input.operand2_fp(2) &
+    io.input.flags(0)
   // 2. check NaN
   val nan_1 = io.input.operand1_fp(4) | io.input.operand1_fp(6)
   val nan_2 = io.input.operand2_fp(4) | io.input.operand2_fp(6)
@@ -105,16 +107,18 @@ object ComparatorBlock {
     val initial_in = (0 until 64) map ((i: Int) => (lt_bit(i), neq_bit(i)))
 
     // The cell of a comparator
-    def comparator_cell((lt_in1: Bool, neq_in1: Bool), (lt_in2: Bool, neq_in2: Bool)) =
+    def comparator_cell(in1: (Bool, Bool), in2: (Bool, Bool)) =
       {
+        val (lt_in1, neq_in1) = in1
+        val (lt_in2, neq_in2) = in2
         val lt_out = Mux(neq_in2, lt_in2, lt_in1)
         val neq_out = neq_in2
         (lt_out, neq_out)
       }
     // The slice of a comparator
-    def comparator_slice(level: Int)(in: Array) =
-      (0 until pow(2, width_exp - 1 - level).intValue) map
-        ((i: Int) => comparator_cell(in(2 * i), in(2 * i + 1)))
+    def comparator_slice(level: Int)(in: Seq[(Bool, Bool)]) =
+      for (i <- 0 until pow(2, width_exp - 1 - level).intValue)
+        comparator_cell(in(2 * i), in(2 * i + 1))
 
     // Return
     // Start folding left from a tuple of lt_bit and neq_bit and apply slices to them

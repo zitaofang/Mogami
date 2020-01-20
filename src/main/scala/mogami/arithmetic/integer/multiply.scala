@@ -1,3 +1,5 @@
+package mogami.arithmetic.integer
+
 import chisel3._
 import chisel3.util._
 
@@ -30,13 +32,14 @@ object PPGenerate {
         Cat((i == b_width - 1).B, neg_carry(i))
       }
     // Concatenate the bits
-    val pp_array = (0 until b_width) map i => Cat(
-      0.U(((b_width - 1 - i) * 2).W), // Left padding
-      prefix(i),
-      unaligned_pp(i),
-      postfix(i),
-      0.U((i * 2).W) // Right padding
-    )
+    val pp_array = for (i <- 0 until b_width)
+      Cat(
+        0.U(((b_width - 1 - i) * 2).W), // Left padding
+        prefix(i),
+        unaligned_pp(i),
+        postfix(i),
+        0.U((i * 2).W) // Right padding
+      )
     // Remove extra bit and return
     pp_array map _(out_width + 1, 2)
   }

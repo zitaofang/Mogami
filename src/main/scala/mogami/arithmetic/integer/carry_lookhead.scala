@@ -1,3 +1,5 @@
+package mogami.arithmetic.integer
+
 import chisel3._
 import chisel3.util._
 
@@ -15,7 +17,7 @@ class Lookahead extends Module {
   // Internally generated carry for each bit
   val internal_g = Cat(
     false.B,
-    io.g(0)
+    io.g(0),
     io.g(1) | io.p(1) & io.g(0),
     io.g(2) | io.p(2) & io.g(1) | io.p(2) & io.p(1) & io.g(0)
   )
@@ -48,7 +50,7 @@ object Lookahead {
     val p = UInt(4.W)
   }
   object Input {
-    def apply(g: UInt(4.W), p: UInt(4.W)) = {
+    def apply(g: UInt, p: UInt) = {
       val res = Wire(new Input())
       res.g := g
       res.p := p
@@ -79,7 +81,7 @@ object Lookahead {
 // level: the lookahead level. Note that each lookahead block handles 4 bits.
 // Therefore, for a 64 bits adder, the level is 3 (4 ** 3 = 64).
 class CompoundAdder(level: Int) extends Module {
-  private input_width = pow(4, level).intValue
+  private val input_width = pow(4, level).intValue
 
   val io = IO(new Bundle{
     val a = Input(UInt(input_width.W))
@@ -128,8 +130,8 @@ class CompoundAdder(level: Int) extends Module {
     case Nil => c
     case (c0, c1) +: tail => carry_select(
       (
-        Cat((c._1.toBool(), c0, c1).zipped map (_ match case (c, a, b) => Mux(c, b, a))),
-        Cat((c._2.toBool(), c0, c1).zipped map (_ match case (c, a, b) => Mux(c, b, a)))
+        Cat((c._1.toBool(), c0, c1).zipped map (_ match { case (c, a, b) => Mux(c, b, a) })),
+        Cat((c._2.toBool(), c0, c1).zipped map (_ match { case (c, a, b) => Mux(c, b, a) }))
       ),
       tail
     )
@@ -143,7 +145,7 @@ class CompoundAdder(level: Int) extends Module {
 
 // The regular lookahead adder, implemented with compound adder
 class Adder(level: Int) extends Module {
-  private input_width = pow(4, level).intValue
+  private val input_width = pow(4, level).intValue
 
   val io = IO(new Bundle{
     val a = Input(UInt(input_width.W))

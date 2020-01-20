@@ -1,3 +1,5 @@
+package mogami.arithmetic.integer
+
 import chisel3._
 import chisel3.util._
 
@@ -25,7 +27,7 @@ class RecoderInPort extends Bundle {
   val r_1m = Bool()
 }
 object RecoderInPort{
-  def apply: new RecoderInPort()
+  def apply = new RecoderInPort()
 }
 class RecoderOutPort extends Bundle {
   val sign = Bool()
@@ -34,16 +36,18 @@ class RecoderOutPort extends Bundle {
   val m_0 = Bool()
 }
 object RecoderOutPort {
-  def apply: new RecoderOutPort()
+  def apply = new RecoderOutPort()
 }
 // The converter from Lyn and Matula's recoder output format
 // to the processor format
-val cellOutputToSD4 = (in: RecoderOutPort) => {
-  val out = new SD4Port
-  out.sign := in.sign
-  out.nonzero := m_0
-  out.shift := m_2
-  out
+object RecoderUtil {
+  def cellOutputToSD4(in: RecoderOutPort): SD4Port = {
+    val out = new SD4Port
+    out.sign := in.sign
+    out.nonzero := m_0
+    out.shift := m_2
+    out
+  }
 }
 // The module
 class SD4RecoderCoreCell extends Module {
@@ -79,7 +83,7 @@ class SD4Recoder2CCell extends Module {
   core.io.in.r_1m := io.in(0)
   core.io.carry_in := io.carry_in
 
-  io.out := cellOutputToSD4(core.io.out)
+  io.out := RecoderUtil.cellOutputToSD4(core.io.out)
   io.carry_out := core.io.carry_out
 }
 
@@ -103,7 +107,7 @@ class SD4RecoderCSCell extends Module {
   core.io.in.r_1m := tmp(1) ^ tmp(0)
   core.io.carry_in := io.carry_in
 
-  io.out := cellOutputToSD4(core.io.out)
+  io.out := RecoderUtil.cellOutputToSD4(core.io.out)
   io.carry_out := core.io.carry_out
 }
 

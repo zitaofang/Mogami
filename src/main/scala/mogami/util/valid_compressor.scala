@@ -58,7 +58,7 @@ class CompressValid[T <: Data](width_exp: Int, t: T) extends Module {
     val upper = grouped map (_(1)._1 ++ empty_block)
     val lower = grouped map (empty_block ++ _(0)._1)
     val shamt = grouped map (_(0)._2)
-    val out_size = grouped map a => a(1)._2 +& a(0)._2
+    val out_size = grouped map (a => a(1)._2 +& a(0)._2)
 
     // Shift upper half and apply "|"
     val shifted = (upper zip shamt) map SimpleShifter(_, _)
@@ -76,14 +76,14 @@ class CompressValid[T <: Data](width_exp: Int, t: T) extends Module {
   // Extract valid and bits from input Valid
   val extracted = (io.in map _.valid) zip (io.in map _.bits)
   // Use valid bit as the size of the group (there is only 1 element)
-  val initial = extracted map pair => (List(pair), pair._1.asUInt(1.W))
+  val initial = extracted map (pair => (List(pair), pair._1.asUInt(1.W)))
   // apply
   val result = tree(initial)
   // And unpack
-  (io.out zip result) map (o, r) => {
+  (io.out zip result) map ((o, r) => {
     o.valid := r._1
     o.bits := r._2
-  }
+  })
 }
 
 object CompressValid {
@@ -98,13 +98,13 @@ object CompressValid {
     core.io.out take in.length
   }
   // A wrapper applied to tuple of valid bit and data bundle
-  def apply[T <: Data](in: Seq[(Bool(), T)], t: T) = {
-    val packed_in = padded_in map => {
+  def apply[T <: Data](in: Seq[(Bool, T)], t: T) = {
+    val packed_in = padded_in map (i => {
       val pack = Wire(Valid(t))
       pack.valid := i._1
       pack.bits := i._2
       pack
-    }
+    })
     apply(packed_in, t)
   }
 }

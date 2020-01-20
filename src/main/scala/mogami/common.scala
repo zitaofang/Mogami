@@ -5,7 +5,7 @@ import chisel3.util._
 
 // Multi-level mux
 object MultiMux {
-  private def array_mux(ctl: Bool, input: Array(2)) =
+  private def array_mux(ctl: Bool, input: Seq[Data]) =
     Mux(ctl, input(1), input(0))
   private def reduce_mux_slice(ctl: Bool, input: Seq[Data]) =
     (0 until input.length / 2) map (

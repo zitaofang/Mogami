@@ -1,3 +1,5 @@
+package mogami.arithmetic.integer
+
 import chisel3._
 import chisel3.util._
 import scala.math.pow
@@ -32,15 +34,14 @@ class Shifter extends Module {
 
 // Simple shifter function
 object SimpleShifter {
-  def apply(input: UInt, shamt: UInt, to_right_: Bool = true.B,
-    shift_in: Bool = false.B) => {
+  def apply(input: UInt, shamt: UInt, to_right_a: Bool = true.B, shift_in: Bool = false.B) = {
       class Slice(level: Int, in: SlicePort[Bool])
       extends ShifterSlice[Bool] with UnalignedShifter[Bool] {
         override def shift = shamt(level)
         override def left_in_ctr = shift_in
         override def right_in_ctr = false.B
         override def block_size = math.pow(2, level).toInt
-        override def to_right = to_right_
+        override def to_right = to_right_a
         override def mux_func = Mux(_, _, _)
         override def padding_right = true
       }
@@ -55,7 +56,7 @@ object SimpleShifter {
 
 // Shifter with a sticky bit output for FPU
 object StickyShifter {
-  def apply(input: UInt, shamt: UInt) => {
+  def apply(input: UInt, shamt: UInt) = {
     class Slice(level: Int, in: SlicePort[Bool])
     extends ShifterSlice[Bool] with UnalignedShifter[Bool]
     with ShiftOutReduce[Bool] {

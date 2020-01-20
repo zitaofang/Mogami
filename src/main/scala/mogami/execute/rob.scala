@@ -93,7 +93,7 @@ class ROBBank(num: Int) extends Module {
   ) reduceLeft (_ | _)
   val exception_mask = io.completion map (c =>
     UIntTo1H(c.bits.address(5, 0)) &
-      Fill(64, c.valid & c.exception & c.bits.address(7, 6) === num.U(2.W)))
+      Fill(64, c.valid & c.exception & c.bits.address(7, 6) === num.U(2.W))
   ) reduceLeft (_ | _)
   // If commit, clear the completion bit the tail pointing to
   // (Clearing exception bit is not necessary as it will be reset)

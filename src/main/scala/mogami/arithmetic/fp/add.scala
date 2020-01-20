@@ -1,7 +1,8 @@
-package mogami.arithmetic.fp.fma
+package mogami.arithmetic.fp
 
 import chisel3._
 import chisel3.util._
+import mogami.CarrySave
 
 // The LZA module based on the following literature:
 // Quinnell, Eric, Earl E. Swartzlander, and Carl Lemonds.
@@ -10,20 +11,22 @@ import chisel3.util._
 //    Conference Record of the Forty-First Asilomar Conference on, pp. 331-337.
 //    IEEE, 2007.
 // See page 28 (Section 2.9) for more information.
-def lza(a_in: UInt, b_in: UInt) = {
-  // Prepare
-  val t = io.a_in ^ io.b_in
-  val g = io.a_in & io.b_in
-  val z = ~io.a_in & ~io.b_in
+object AddUtil {
+  def lza(a_in: UInt, b_in: UInt) = {
+    // Prepare
+    val t = a_in ^ b_in
+    val g = a_in & b_in
+    val z = ~a_in & ~b_in
 
-  // Calculate
-  val raw_f = Wire(UInt(64.W))
-  raw_f := (t << 1) & (g & ~(z >> 1) | z & ~(g >> 1)) |
-    ~(t << 1) & (z & ~(z >> 1) | g & ~(g >> 1))
-  val f = Cat(raw_f(63, 1), ~t(0) & t(1))
+    // Calculate
+    val raw_f = Wire(UInt(64.W))
+    raw_f := (t << 1) & (g & ~(z >> 1) | z & ~(g >> 1)) |
+      ~(t << 1) & (z & ~(z >> 1) | g & ~(g >> 1))
+    val f = Cat(raw_f(63, 1), ~t(0) & t(1))
 
-  // Encode and return
-  PriorityEncoder(Reverse(f))
+    // Encode and return
+    PriorityEncoder(Reverse(f))
+  }
 }
 
 // The integrated FP add.
@@ -32,7 +35,7 @@ class FPAdd extends Module {
   val io = IO(new Bundle() {
     val is_double = Input(Bool())
 
-    val m = Input(CarrySave(106)) // ONE CYCLE LATE
+    val m = Input(new CarrySave(106)) // ONE CYCLE LATE
     val m_exp = Input(UInt(12.W))
     val m_sign = Input(Bool())
     val m_flags = Input(UInt(4.W)) // One-hot flags: zero, denorm, inf, nan
@@ -41,7 +44,7 @@ class FPAdd extends Module {
     val a_sign = Input(Bool())
     val a_flags = Input(UInt(4.W))
 
-    val out = Output(CarrySave(55))
+    val out = Output(new CarrySave(55))
     val out_exp = Output(UInt(12.W))
     val out_sign = Output(UInt(12.W))
     val out_flags = Output(UInt(4.W))
@@ -50,8 +53,8 @@ class FPAdd extends Module {
 
   // Calculate exponent
   val exp_adder = Module(new AbsDiff())
-  exp_adder.io.a := m_exp
-  exp_adder.io.b := a_exp
+  exp_adder.io.a := io.m_exp
+  exp_adder.io.b := io.a_exp
   val out_of_range = exp_adder.io.out(11, 7).orR
   val m_shift_en = RegNext(exp_adder.io.lt)
   val m_oor = RegNext(out_of_range & exp_adder.io.lt)
@@ -61,11 +64,11 @@ class FPAdd extends Module {
   val exp_base = RegNext(RegNext(Mux(exp_adder.io.lt, io.a_exp, io.m_exp)))
   // Sign and plus/minus
   val minus = RegNext(m_sign ^ a_sign)
-  val exp_based_sign = RegNext(RegNext(Mux(exp_adder.io.lt, a_shift, m_shift)))
+  val exp_based_sign = RegNext(RegNext(Mux(exp_adder.io.lt, io.a_shift, io.m_shift)))
   // Close path selection
   val cp = RegNext(RegNext(
     VecInit((-1 to 2) map (_.U(12.W) === exp_abs_diff.out)).orR |
-    m_sign ^ a_sign
+    io.m_sign ^ io.a_sign
   ))
 
   // Special value handling rules:
@@ -128,7 +131,7 @@ class FPAdd extends Module {
   // Apply LZA to obtain the leading zero position
   // Don't shift if close path is not selected
   val cp_shift = RegNext(Fill(6, cp) &
-    lza(csa_out_s(160, 97), csa_out_c(160, 97)))
+    AddUtil.lza(csa_out_s(160, 97), csa_out_c(160, 97)))
   // Compare sum and carry, with the negative one negated.
   // This determine the sign of the result.
   val (lt, neq) = ComparatorBlock(Cat(Fill(161, csa_out_s(160)) ^ csa_out_s, 95),

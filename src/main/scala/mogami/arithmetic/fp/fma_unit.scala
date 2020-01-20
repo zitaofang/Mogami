@@ -1,4 +1,4 @@
-package mogami.arithmetic.fp.fma
+package mogami.arithmetic.fp
 
 import chisel3._
 import chisel3.util._
@@ -19,5 +19,5 @@ class FMA extends Module {
     val out = Output(new FPPortOut())
   })
 
-  
+
 }

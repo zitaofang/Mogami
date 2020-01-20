@@ -79,6 +79,6 @@ class Decode extends Module {
   }
 
   // Connect dst
-  (0 until 4) map i =>
+  for (i <- 0 until 4)
     io.dst(i) := Cat(io.in(11, 7)) & Fill(6, ~inst_class(4, 3).orR)
 }

@@ -48,12 +48,12 @@ class RenameFlushControl extends Module {
   val rreg_valid = RegNext(valid & ~RegNext(finished))
   val wreg_valid = RegNext(rreg_valid)
   // Set the address during transfer
-  (0 until 4) map i => {
+  (0 until 4) map (i => {
     io.rrt_addr(i) := Cat(reg_counter, i.U(2.W))
     io.reg_read(i).addr.bits := RegNext(io.rrt_data(i))
     io.reg_read(i).addr.valid := rreg_valid
     io.reg_write(i).bits.addr := RegNext(RegNext(reg_counter))
     io.reg_write(i).bits.data := io.reg_read(i).data
     io.reg_write(i).valid := wreg_valid
-  }
+  })
 }

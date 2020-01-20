@@ -30,7 +30,7 @@ class DecompressValid[T <: Data](width_exp: Int, t: T) extends Module {
     }
 
     // For every block...
-    val block_map = in map b => {
+    val block_map = in map (b => {
       // Extract the index MSB
       val extracted = (b map slice)
       // split the upper and lower halves of the original list
@@ -50,21 +50,21 @@ class DecompressValid[T <: Data](width_exp: Int, t: T) extends Module {
       val half_len = b.length / 2
       // And output
       List((lower grouped half_len)(0), (shifted grouped half_len)(1))
-    }
+    })
 
     // Merge the output of every block
     block_map flatMap _
   }
 
   // Format the input
-  val initial = (io.in map a => (a.valid, a.bits)) zip io.in_index
+  val initial = (io.in map (a => (a.valid, a.bits))) zip io.in_index
   // Fold it through
   val result = (initial /: (0 until width_exp))(slice(_))
   // assign them to the output
-  (result zip io.out) map (pair, out) => {
+  (result zip io.out) map ((pair, out) => {
     out.valid := pair._1._1
     out.bits := pair._1._2
-  }
+  })
 }
 object DecompressValid {
   def apply[T <: Data](in: Vec[Valid[T]], index: Vec[UInt], t: T) = {

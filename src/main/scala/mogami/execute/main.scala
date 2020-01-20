@@ -118,8 +118,8 @@ class Main extends Module {
 
   //  ======== Select the read address =========
   // (for register read)
-  val resolved_read = ((0 until 4) cross (0 until 3)) map (i, j) =>
-    Mux(depend_sel(i)(j), depend_read(i)(j), rename_read(i)(j))
+  val resolved_read = ((0 until 4) cross (0 until 3)) map ((i, j) =>
+    Mux(depend_sel(i)(j), depend_read(i)(j), rename_read(i)(j)))
 
   // ========== WAW Resolve ==========
   // Detect WAW hazard within one instruction pack. WAW will not
@@ -174,12 +174,12 @@ class Main extends Module {
   // immediate operands and operands that depends on other insts, so we
   // can just take whatever in "val operands".
   for (i <- 0 until 16) {
-    pipe_uops(i).src map src_op =>
+    pipe_uops(i).src map (src_op =>
       when (src_op.present) {
         src_op := operands(i / 4)(src_op.tag(1, 0))
       } .otherwise {
         src_op.tag(9, 2) := pipe_uops(i).micro_tag(9, 2)
-      }
+      })
   }
 
   // ============= Enqueue uops =============
@@ -231,20 +231,20 @@ class Main extends Module {
   // <<<<<<<<<<< BEGINNING OF COMPLETION FLOW >>>>>>>>>>>>
 
   // Connect to ROB
-  rob.io.completion := io.cdb map bus => {
+  rob.io.completion := io.cdb map (bus => {
     val rob_pack = Wire(Valid(new ROBCompletePack()))
     rob_pack.bits := bus.bits.rob_pack
     rob_pack.valid := bus.valid
     rob_pack
-  }
+  })
 
   // Write to RegFile
-  reg_file.io.write := io.cdb map bus => {
+  reg_file.io.write := io.cdb map (bus => {
     val reg_pack = Wire(Valid(new RegWritePack()))
     reg_pack.bits := bus.bits.reg_pack
     reg_pack.valid := bus.valid
     reg_pack
-  }
+  })
 
   // <<<<<<<<<<< END OF COMPLETION FLOW >>>>>>>>>>>>
 

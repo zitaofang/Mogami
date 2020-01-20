@@ -31,7 +31,7 @@ abstract class BaseBarrelSlice[T] {
   // left_in_blk: The data block shifting in from the left.
   // barrel_in: the actual input that the slice will take. Can be overloaded.
   def block_size: Int
-  def mux_func: (Bool(), T, T) => T
+  def mux_func: (Bool, T, T) => T
   def right_in_blk: Seq[T]
   def left_in_blk: Seq[T]
 
@@ -78,7 +78,6 @@ abstract class RotatorSlice[T] extends BarrelRotator[T] {
 // WARNING: Always put this trait as the last trait. Other traits may
 // override the result as a simple port and discard the reduced value.
 trait ShiftOutReduce[T] {
-  type T
   this: ShifterSlice[T] =>
 
   def reduce_ctr: T
