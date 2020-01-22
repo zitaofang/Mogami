@@ -117,12 +117,11 @@ object ComparatorBlock {
       }
     // The slice of a comparator
     def comparator_slice(level: Int)(in: Seq[(Bool, Bool)]) =
-      for (i <- 0 until pow(2, width_exp - 1 - level).intValue)
-        comparator_cell(in(2 * i), in(2 * i + 1))
+      (0 until pow(2, width_exp - 1 - level).intValue) map
+        (i => comparator_cell(in(2 * i), in(2 * i + 1)))
 
     // Return
     // Start folding left from a tuple of lt_bit and neq_bit and apply slices to them
-    (initial_in /: ((0 until width_exp) map comparator_slice(_)))
-      ((in, func) => func(in))
+    (initial_in /: ((0 until width_exp) map comparator_slice))((in, func) => func(in))(0)
   }
 }

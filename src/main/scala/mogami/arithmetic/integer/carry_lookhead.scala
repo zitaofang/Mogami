@@ -138,9 +138,9 @@ class CompoundAdder(level: Int) extends Module {
   }
   val sel_res = carry_select((false.B, true.B), lookahead_res)
   // Return
-  (io.s0, io.s1) := (sel_res._1 ^ s, sel_res._2 ^ s)
-  (io.g, io.p) := (g_out, p_out)
-  (io.sign_c(1), io.sign_c(0)) := (sel_res._1(63), sel_res._2(63))
+  Cat(io.s0, io.s1) := (sel_res._1 ^ s, sel_res._2 ^ s)
+  Cat(io.g, io.p) := (g_out, p_out)
+  Cat(io.sign_c(1), io.sign_c(0)) := (sel_res._1(63), sel_res._2(63))
 }
 
 // The regular lookahead adder, implemented with compound adder

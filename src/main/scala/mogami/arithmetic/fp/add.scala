@@ -3,6 +3,9 @@ package mogami.arithmetic.fp
 import chisel3._
 import chisel3.util._
 import mogami.CarrySave
+import mogami.arithmetic.ComparatorBlock
+import mogami.arithmetic.integer.StickyShifter
+import mogami.arithmetic.integer.CSAUtil
 
 // The LZA module based on the following literature:
 // Quinnell, Eric, Earl E. Swartzlander, and Carl Lemonds.
@@ -11,7 +14,7 @@ import mogami.CarrySave
 //    Conference Record of the Forty-First Asilomar Conference on, pp. 331-337.
 //    IEEE, 2007.
 // See page 28 (Section 2.9) for more information.
-object AddUtil {
+object FPAddUtil {
   def lza(a_in: UInt, b_in: UInt) = {
     // Prepare
     val t = a_in ^ b_in
@@ -63,11 +66,11 @@ class FPAdd extends Module {
   val no_shift = RegNext(exp_adder.io.eq)
   val exp_base = RegNext(RegNext(Mux(exp_adder.io.lt, io.a_exp, io.m_exp)))
   // Sign and plus/minus
-  val minus = RegNext(m_sign ^ a_sign)
-  val exp_based_sign = RegNext(RegNext(Mux(exp_adder.io.lt, io.a_shift, io.m_shift)))
+  val minus = RegNext(io.m_sign ^ io.a_sign)
+  val exp_based_sign = RegNext(RegNext(Mux(exp_adder.io.lt, io.a_sign, io.m_sign)))
   // Close path selection
   val cp = RegNext(RegNext(
-    VecInit((-1 to 2) map (_.U(12.W) === exp_abs_diff.out)).orR |
+    Cat((-1 to 2) map (i => (i.U(12.W) === exp_adder.io.out))).orR |
     io.m_sign ^ io.a_sign
   ))
 
@@ -76,7 +79,7 @@ class FPAdd extends Module {
   // inf - inf = NaN (IV exception)
   // inf + anything = inf
   // zero + zero = zero
-  val invalid_op_wire = io.m_flags(2) & io.a_flags(2) & m_sign ^ a_sign
+  val invalid_op_wire = io.m_flags(2) & io.a_flags(2) & io.m_sign ^ io.a_sign
   val nan_gen_wire =
     io.m_flags(3) | io.a_flags(3) |
     invalid_op_wire
@@ -111,7 +114,7 @@ class FPAdd extends Module {
   // The CSA has a width of 161 bits,
   // equal to 3 * 53 + 1 (for adjusment) + 1 (sign).
   // The overflow bit will be discard as there would never be overflow.
-  val (csa_out_s, csa_out_c) = csa(161)(
+  val (csa_out_s, csa_out_c) = CSAUtil.csa(161)(
     Cat(0.U(2.W), ms_out),
     Cat(0.U(2.W), mc_out),
     Fill(161, minus) ^ Cat(0.U(2.W), a_out),
@@ -120,10 +123,8 @@ class FPAdd extends Module {
   // Create a negated version
   // Since this is only used for close path with subtraction, always
   // negate the operand
-  val unpack = (f: Function3[Any, Any, Any, Any]) =>
-    ((t: Tuple2[Any, Any], a: Any) => f(t._1, t._2, a))
-  val (negated_out_s, negated_out_c) = unpack(ha(161))(csa(160)(
-    ~ms_out, ~mc_out, a_out, true.B), true.B)
+  val (negated_tmp_s, negated_tmp_c) = CSAUtil.csa(160)(~ms_out, ~mc_out, a_out, true.B)
+  val (negated_out_s, negated_out_c) = CSAUtil.ha(161)(negated_tmp_s, negated_tmp_c, true.B)
 
   // NOTE: All the code below this and within this stage are used in close
   // path only!
@@ -131,7 +132,7 @@ class FPAdd extends Module {
   // Apply LZA to obtain the leading zero position
   // Don't shift if close path is not selected
   val cp_shift = RegNext(Fill(6, cp) &
-    AddUtil.lza(csa_out_s(160, 97), csa_out_c(160, 97)))
+    FPAddUtil.lza(csa_out_s(160, 97), csa_out_c(160, 97)))
   // Compare sum and carry, with the negative one negated.
   // This determine the sign of the result.
   val (lt, neq) = ComparatorBlock(Cat(Fill(161, csa_out_s(160)) ^ csa_out_s, 95),
@@ -149,8 +150,8 @@ class FPAdd extends Module {
 
   // ========== Stage ==========
   // shift sum and carry
-  val (s_out, s_sticky) = RegNext(StickyShifter(cp_s, cp_shift))
-  val (c_out, c_sticky) = RegNext(StickyShifter(cp_c, cp_shift))
+  val (s_out, s_sticky) = StickyShifter(cp_s, cp_shift) map RegNext(_)
+  val (c_out, c_sticky) = StickyShifter(cp_c, cp_shift) map RegNext(_)
   // Adjust the carry out value: check the existance of carry out
   // by xoring the highest two bits
   val cout =
@@ -174,5 +175,5 @@ class FPAdd extends Module {
   io.sticky := io.shift_sticky |
     shifted_s(103, 0).orR | shifted_c(103.0).orR
   // send the higher 55 bit as the result
-  (io.out.s, io.out.c) := (shifted_s(159, 104), shifted_c(159, 104))
+  Cat(io.out.s, io.out.c) := (shifted_s(159, 104), shifted_c(159, 104))
 }

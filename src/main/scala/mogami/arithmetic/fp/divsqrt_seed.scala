@@ -2,6 +2,11 @@ package mogami.arithmetic.fp
 
 import chisel3._
 import chisel3.util._
+import mogami.arithmetic.integer.CSAUtil
+import mogami.arithmetic.integer.SD4RecoderSC
+import mogami.arithmetic.integer.SD4Recoder2C
+import mogami.arithmetic.integer.PPGenerate
+import mogami.arithmetic.integer.SimpleShifter
 
 // This module is based on the following literature but with minor modification in
 // the Goldschmidt's algorithm part so that uops can be used:
@@ -20,7 +25,7 @@ class Square extends Module {
   // Arrange the input
   // This have already been tested in verilog code and should work
   val mat_in = List(
-    Cat(false.B, Fill(15, io.in(15)) & in(14, 0)),
+    Cat(false.B, Fill(15, io.in(15)) & io.in(14, 0)),
     Cat(false.B, io.in(15), false.B, Fill(13, io.in(14)) & io.in(13, 1)),
     Cat(0.U(3.W), io.in(14), false.B, Fill(11, io.in(13)) & io.in(12, 2)),
     Cat(0.U(5.W), io.in(13), false.B, Fill(9, io.in(12)) & io.in(11, 3)),
@@ -32,7 +37,7 @@ class Square extends Module {
   )
 
   // Tree
-  (io.out_s, io.out_c) := csa_tree(16)(mat_in)
+  Cat(io.out_s, io.out_c) := CSAUtil.csa_tree(16)(mat_in)
 }
 
 // The Black box for the LUT
@@ -156,13 +161,13 @@ class DivSqrtSeedMantissa extends Module {
   // Shift
   // Here, the propagation tail is shifted in
   val raw_pos_pp =
-    ((c2_pp zip (0 until 8)) map Cat(0.U(19.W),
-      shift_func(_, _),
-    0.U(6.U))) ++
+    ((c2_pp zip (0 until 8)) map ((a, b) => Cat(0.U(19.W),
+      shift_func(a, b),
+    0.U(6.U)))) ++
     Cat(SimpleShifter(c0_pp, c0_shamt, true.B, false.B), 0.U(26.W))
   val neg_pp =
-    (c1_pp map Cat(0.U(10.W),
-      SimpleShifter(Cat(_, 0.U(3.W)), c1_shamt, true.B, false.B))
+    (c1_pp map (a => Cat(0.U(10.W),
+      SimpleShifter(Cat(a, 0.U(3.W)), c1_shamt, true.B, false.B)))
     )
 
   // Add the propagation bit in
@@ -170,16 +175,16 @@ class DivSqrtSeedMantissa extends Module {
     Cat(0.U(10.W), p_head, "b'1111111".U(7.W), raw_pos_pp(7)(36, 0))
 
   // Wallace tree
-  val (pos_s, pos_c) = csa_tree(56)(pos_pp)
-  val (neg_s, neg_c) = csa_tree(56)(neg_pp)
+  val (pos_s, pos_c) = CSAUtil.csa_tree(56)(pos_pp)
+  val (neg_s, neg_c) = CSAUtil.csa_tree(56)(neg_pp)
   // Then, flip neg_s and _c and add them together
   // Since I need two carry-ins to negate them, I manually set the csa as the
   // csa_tree doesn't allow carry in
-  val (int_s, int_c) = csa(56)(pos_s, pos_c, ~neg_s, true.B)
-  val (res_s, res_c) = csa(56)(int_s(56, 0), int_c(56, 0), ~neg_c, true.B)
+  val (int_s, int_c) = CSAUtil.csa(56)(pos_s, pos_c, ~neg_s, true.B)
+  val (res_s, res_c) = CSAUtil.csa(56)(int_s(56, 0), int_c(56, 0), ~neg_c, true.B)
 
   // Trim the result
-  (out_s, out_c) := (res_s(55, 26), res_c(55, 26))
+  Cat(out_s, out_c) := (res_s(55, 26), res_c(55, 26))
 }
 
 // The component exposed to the pipeline

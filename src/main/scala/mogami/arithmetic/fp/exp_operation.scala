@@ -2,6 +2,10 @@ package mogami.arithmetic.fp
 
 import chisel3._
 import chisel3.util._
+import mogami.arithmetic.integer.CompoundAdder
+import mogami.arithmetic.integer.Adder
+import mogami.QuickPlusOne
+import mogami.arithmetic.ComparatorBlock
 
 // This file implements two exponent operations used in the
 // FPU: Add/subtract and divide by 2.

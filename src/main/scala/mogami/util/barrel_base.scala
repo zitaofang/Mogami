@@ -37,21 +37,23 @@ abstract class BaseBarrelSlice[T] {
 
   // The subclass can override the way how the element is grouped.
   // But for the default case, use iterable.group
-  def grouped = in.data group block_size
+  def grouped = (in.data grouped block_size).toSeq
 
   // =========================
   // Internal states
-  val block_mux = (s: Bool, a: T, b: T) => (a zip b) map mux_func(s, _, _)
+  val block_mux = (s: Bool, a: Seq[T], b: Seq[T]) => (a zip b) map
+    (_ match {case (a, b) => mux_func(s, a, b)})
   val shifted_r = right_in_blk +: grouped.init
   val shifted_l = grouped.tail :+ left_in_blk
-  val shifted = (shifted_r zip shifted_l) map block_mux(to_right, _, _)
+  val shifted = (shifted_r zip shifted_l) map
+    (_ match { case (r, l) => block_mux(to_right, r, l) })
   // =========================
   // The output of the shift.
   // data: The main output of the shifter.
   // right_out_blk: The rightmost block being shifted out. It is
   // equal to left_in_blk if no shift occurs.
   // left_out_blk: Ditto, but this is the leftmost block.
-  val data_out = (shifted zip grouped) flatMap block_mux(sel, _, _)
+  val data_out = (shifted zip grouped) flatMap (_ match { case (s, g) => block_mux(shift, s, g) })
   val right_out_blk = block_mux(sel, grouped.last, right_in_blk)
   val left_out_blk = block_mux(sel, grouped.head, left_in_blk)
 
@@ -60,16 +62,16 @@ abstract class BaseBarrelSlice[T] {
 }
 
 // The shifter class
-abstract class ShifterSlice[T] extends BarrelRotator[T] {
+abstract class ShifterSlice[T] extends BaseBarrelSlice[T] {
   def left_in_ctr: T
   def right_in_ctr: T
 
-  override def right_in_blk = (0 until block_size) map right_in_ctr
-  override def left_in_blk = (0 until block_size) map left_in_ctr
+  override def right_in_blk = List().padTo(block_size, right_in_ctr)
+  override def left_in_blk = List().padTo(block_size, left_in_ctr)
 }
 
 // The rotator class
-abstract class RotatorSlice[T] extends BarrelRotator[T] {
+abstract class RotatorSlice[T] extends BaseBarrelSlice[T] {
   override def right_in_blk = left_out_blk
   override def left_in_blk = right_out_blk
 }
@@ -84,10 +86,10 @@ trait ShiftOutReduce[T] {
   def reduce_func: (T, T) => T
   // =======================
   val reduce_in = in match { case SliceReducePort(_, r) => r }
-  val reduce_block = (0 until block_size) map reduce_ctr
+  val reduce_block = List().padTo(block_size, reduce_ctr)
   // =======================
   val reduce_out = (reduce_in /: reduce_block)(reduce_func)
-  override def result = new SliceReducePort(super.result.data, reduce_out)
+  override def result = new SliceReducePort(this.asInstanceOf[ShifterSlice[T]].result.data, reduce_out)
 }
 
 // The unaligned shift trait: Allow the width of input to be indivisible by
@@ -98,7 +100,7 @@ trait UnalignedShifter[T] {
   def padding_right: Boolean
   // =======================
   // The padding element #
-  val padding = block_size - (in.length % block_size)
+  val padding = block_size - (in.data.length % block_size)
 
   // Padded the input
   val right_padded_in = ((0 until padding) map right_in_ctr) ++ in.data
@@ -106,7 +108,7 @@ trait UnalignedShifter[T] {
   val padded_in = if (padding_right) right_padded_in else left_padded_in
 
   // Override group to select the padded input
-  override def grouped = padded_in group block_size
+  override def grouped = List(padded_in grouped block_size)
 
   // override the output so that its width is equal to the input
   // Note that "right" in this project means smaller index and is

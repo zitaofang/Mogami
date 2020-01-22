@@ -3,6 +3,11 @@ package mogami.arithmetic.integer
 import chisel3._
 import chisel3.util._
 import scala.math.pow
+import mogami.util.ShifterSlice
+import mogami.util.UnalignedShifter
+import mogami.util.SlicePort
+import mogami.util.ShiftOutReduce
+import mogami.util.SliceReducePort
 
 class Shifter extends Module {
   val io = IO(new Bundle{
@@ -35,22 +40,22 @@ class Shifter extends Module {
 // Simple shifter function
 object SimpleShifter {
   def apply(input: UInt, shamt: UInt, to_right_a: Bool = true.B, shift_in: Bool = false.B) = {
-      class Slice(level: Int, in: SlicePort[Bool])
-      extends ShifterSlice[Bool] with UnalignedShifter[Bool] {
-        override def shift = shamt(level)
-        override def left_in_ctr = shift_in
-        override def right_in_ctr = false.B
-        override def block_size = math.pow(2, level).toInt
-        override def to_right = to_right_a
-        override def mux_func = Mux(_, _, _)
-        override def padding_right = true
-      }
+        class Slice(level: Int, in: SlicePort[Bool])
+        extends ShifterSlice[Bool] with UnalignedShifter[Bool] {
+          override def shift = shamt(level)
+          override def left_in_ctr = shift_in
+          override def right_in_ctr = false.B
+          override def block_size = math.pow(2, level).toInt
+          override def to_right = to_right_a
+          override def mux_func = Mux(_, _, _)
+          override def padding_right = true
+        }
 
-      val slice = (level: Int) => (in: SlicePort[Bool]) =>
-        new Slice(level, in).result
-      val tree = (0 until shamt.getWidth) map slice(_)
+        val slice = (level: Int) => (in: SlicePort[Bool]) =>
+          new Slice(level, in).result
+        val tree = (0 until shamt.getWidth) map slice(_)
 
-      (new SliceSimplePort(input) /: tree)(a, f => f(a)).data
+        Cat((new SliceSimplePort(input) /: tree)(a, f => f(a)).data)
     }
 }
 
@@ -73,9 +78,9 @@ object StickyShifter {
 
     val slice = (level: Int) => (in: SlicePort[Bool]) =>
       new Slice(level, in).result
-    val tree = (0 until shamt.getWidth) map slice(_)
+    val tree = (0 until shamt.getWidth) map (i => slice(i))
 
-    (new SliceReducePort(input, false.B) /: tree)(a, f => f(a)) match
-      { case SliceReducePort(data, reduce) => (data, reduce) }
+    (new SliceReducePort(input.toBools, false.B) /: tree)((a, f) => f(a)) match
+      { case SliceReducePort(data, reduce) => (Cat(data), reduce) }
   }
 }

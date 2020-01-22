@@ -57,7 +57,7 @@ class RegFileRAM extends Module {
     // Set up register read
     // Special encoding of Operand() is used. See the top of the page
     // for comments.
-    (o.value, o.fp_flags) :=
+    Cat(o.value, o.fp_flags) :=
       m.read(Cat(io.read_bank, r.value(5, 0)), r.present)
 
     // Fill in the rest of the structure

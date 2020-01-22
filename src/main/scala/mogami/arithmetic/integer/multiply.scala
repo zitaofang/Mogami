@@ -58,5 +58,5 @@ class Multiplier extends Module {
   val pp = PPGenerate(io.a, io.b, io.compensate)
 
   // The Wallace tree
-  (io.s, io.c) := csa_tree(128)(pp)
+  Cat(io.s, io.c) := CSAUtil.csa_tree(128)(pp)
 }

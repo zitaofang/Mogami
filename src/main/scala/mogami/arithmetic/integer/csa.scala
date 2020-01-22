@@ -1,9 +1,9 @@
-package mogami.arithmetic
+package mogami.arithmetic.integer
 
 import chisel3._
 import chisel3.util._
 
-package object integer {
+object CSAUtil {
   // The csa function, with one bit carry out on the left
   def csa(width: Int)(a: UInt, b: UInt, c: UInt, carry_in: Bool): Tuple2[UInt, UInt] = {
     val s = UInt((width + 1).W)
