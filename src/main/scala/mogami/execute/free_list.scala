@@ -8,7 +8,7 @@ class FreeListBank extends Module {
   val io = IO(new Bundle() {
     val flush_req = Irrevocable(DontCare)
     val alloc_reg = Irrevocable(UInt(6.W))
-    val free_reg = Filpped(Irrevocable(UInt(6.W)))
+    val free_reg = Flipped(Irrevocable(UInt(6.W)))
   })
 
   // Once the reset signal from the Rename Flush Controller
@@ -22,7 +22,7 @@ class FreeListBank extends Module {
     list_reset := ~wrapped & list_reset
 
     // The queue
-    val queue_input = Filpped(Irrevocable(UInt(6.W)))
+    val queue_input = Flipped(Irrevocable(UInt(6.W)))
     queue_input <> io.free_reg
     val queue_output = Irrevocable(UInt(6.W))
     queue_output <> Queue.irrecovable(queue_input, 32)
@@ -47,7 +47,7 @@ class FreeList extends Module {
   val io = IO(new Bundle() {
     val flush_req = Irrevocable(DontCare)
     val alloc_reg = Vec(4, Irrevocable(UInt(6.W)))
-    val free_reg = Vec(4, Filpped(Irrevocable(UInt(6.W))))
+    val free_reg = Vec(4, Flipped(Irrevocable(UInt(6.W))))
   })
 
   // Simply connect all the ports to the banks

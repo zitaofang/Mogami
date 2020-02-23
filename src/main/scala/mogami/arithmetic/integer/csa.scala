@@ -29,12 +29,12 @@ object CSAUtil {
   // The csa tree: keep applying csa to compress data until two are left.
   // It is a Wallace Tree, but I will leave the width specification to
   // the optimizer.
-  def csa_tree(width: Int)(in_arr: List): Tuple2[UInt, UInt] = {
+  def csa_tree(width: Int)(in_arr: List[UInt]): Tuple2[UInt, UInt] = {
     // A simple array-to-tuple function ("false" is the carry in, not used here)
-    val to_tuple = (arr: List) => arr match { case List(a, b, c, _*) => (a, b, c, false.B) }
+    val to_tuple = (arr: List[UInt]) => arr match { case List(a, b, c, _*) => (a, b, c, false.B) }
     // The internal function for folding
     @scala.annotation.tailrec
-    def csa_slice(from_right: Boolean, in_array: List) = {
+    def csa_slice(from_right: Boolean, in_array: List[UInt]) = {
       if (in_array.length <= 2)
         in_array
       else {

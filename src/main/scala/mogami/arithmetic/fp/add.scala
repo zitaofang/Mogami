@@ -135,8 +135,8 @@ class FPAdd extends Module {
     FPAddUtil.lza(csa_out_s(160, 97), csa_out_c(160, 97)))
   // Compare sum and carry, with the negative one negated.
   // This determine the sign of the result.
-  val (lt, neq) = ComparatorBlock(Cat(Fill(161, csa_out_s(160)) ^ csa_out_s, 95),
-    Cat(Fill(161, csa_out_c(160)) ^ csa_out_c, 95))
+  val (lt, neq) = ComparatorBlock(Fill(161, csa_out_s(160)) ^ csa_out_s,
+    Fill(161, csa_out_c(160)) ^ csa_out_c)
   val op_sel = Mux(csa_out_s(160), lt, ~(lt & neq)) | ~cp
 
   // Select the mantissa
@@ -150,8 +150,8 @@ class FPAdd extends Module {
 
   // ========== Stage ==========
   // shift sum and carry
-  val (s_out, s_sticky) = StickyShifter(cp_s, cp_shift) map RegNext(_)
-  val (c_out, c_sticky) = StickyShifter(cp_c, cp_shift) map RegNext(_)
+  val (s_out, s_sticky) = StickyShifter(cp_s, cp_shift) match { case (a, b) => (RegNext(a), RegNext(b)) }
+  val (c_out, c_sticky) = StickyShifter(cp_c, cp_shift) match { case (a, b) => (RegNext(a), RegNext(b)) }
   // Adjust the carry out value: check the existance of carry out
   // by xoring the highest two bits
   val cout =
@@ -172,8 +172,9 @@ class FPAdd extends Module {
   io.out_exp := cp_exp_adder.io.out
   io.out_sign := cp_sign
   // Send the lower 104 bits to the tree to form sticky bit
-  io.sticky := io.shift_sticky |
-    shifted_s(103, 0).orR | shifted_c(103.0).orR
+  io.sticky := shift_sticky |
+    shifted_s(103, 0).orR | shifted_c(103, 0).orR
   // send the higher 55 bit as the result
-  Cat(io.out.s, io.out.c) := (shifted_s(159, 104), shifted_c(159, 104))
+  io.out.s := shifted_s(159, 104)
+  io.out.c := shifted_c(159, 104)
 }

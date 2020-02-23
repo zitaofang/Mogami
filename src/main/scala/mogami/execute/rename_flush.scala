@@ -14,7 +14,7 @@ class RenameFlushControl extends Module {
     val read_bank = Output(Bool())
     val write_bank = Output(Bool())
 
-    val flush_req = Filpped(Irrevocable(DontCare))
+    val flush_req = Flipped(Irrevocable(DontCare))
 
     val rrt_addr = Vec(4, Valid(UInt(6.W)))
     val rrt_data = Input(Vec(4, UInt(8.W)))

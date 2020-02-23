@@ -2,6 +2,9 @@ package mogami.arithmetic.fp
 
 import chisel3._
 import chisel3.util._
+import mogami.arithmetic.FUPortIn
+import mogami.arithmetic.FPPortOut
+import mogami.arithmetic.integer.SimpleShifter
 
 // classify the FP and set the corresponding auxiliary bits.
 // This is not FCLASS implementation: for its implemention, see "single_cycle.scala".
@@ -10,8 +13,8 @@ import chisel3.util._
 // flags[0] is 1 if double.
 class FPAuxClass extends Module {
   val io = IO(new Bundle{
-    val in = Input(FUPortIn)
-    val out = Output(FPPortOut)
+    val in = Input(new FUPortIn())
+    val out = Output(new FPPortOut())
   })
 
   // Detect MSB for denorm
@@ -43,10 +46,10 @@ class FPAuxClass extends Module {
   )
 
   // Shift the mantissa
-  val denorm_en = exp0 & ~fra_0
+  val denorm_en = exp_0 & ~fra_0
   val shamt = Fill(6, denorm_en) & denorm_shamt
   when (io.in.flags(0)) {
-    io.out.output1(63, 52) := in.in.operand1(63, 52)
+    io.out.output1(63, 52) := io.in.operand1(63, 52)
     io.out.output1(51, 0) :=
       SimpleShifter(io.in.operand1(51, 0), shamt, false.B)
   } .otherwise {

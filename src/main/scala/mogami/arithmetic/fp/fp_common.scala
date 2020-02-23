@@ -1,4 +1,4 @@
-package mogami.arithemetic.fp
+package mogami.arithmetic.fp
 
 import chisel3._
 import chisel3.util._

@@ -8,11 +8,12 @@ import mogami.util.UnalignedShifter
 import mogami.util.SlicePort
 import mogami.util.ShiftOutReduce
 import mogami.util.SliceReducePort
+import mogami.util.SliceSimplePort
 
 class Shifter extends Module {
   val io = IO(new Bundle{
-    val input = Input(FUPortIn)
-    val output = Output(FUPortOut)
+    val input = Input(new FUPortIn())
+    val output = Output(new FUPortOut())
   })
 
   // Implement the shifter
@@ -24,9 +25,9 @@ class Shifter extends Module {
     override def to_right = io.input.flags(0)
     override def mux_func = Mux(_, _, _)
   }
-  val slice = (level: Int) => (in: SlicePort[Bool]) =>
-    new Slice(level, in, io.input.operand2(level)).result
-  val tree = (0 until 6) map slice(_)
+  val slice = (level: Int) => ((in: SlicePort[Bool]) =>
+    new Slice(level, in, io.input.operand2(level)).result)
+  val tree = (0 until 6) map slice
 
   io.output.output1 :=
     (new SliceSimplePort(io.input.operand1.toBool()s) /: tree)
@@ -51,11 +52,11 @@ object SimpleShifter {
           override def padding_right = true
         }
 
-        val slice = (level: Int) => (in: SlicePort[Bool]) =>
-          new Slice(level, in).result
-        val tree = (0 until shamt.getWidth) map slice(_)
+        val slice = (level: Int) => ((in: SlicePort[Bool]) =>
+          new Slice(level, in).result)
+        val tree = (0 until shamt.getWidth) map slice
 
-        Cat((new SliceSimplePort(input) /: tree)(a, f => f(a)).data)
+        Cat((new SliceSimplePort(input.toBools) /: tree)((a, f) => f(a)).data)
     }
 }
 
@@ -76,9 +77,9 @@ object StickyShifter {
       override def padding_right = false
     }
 
-    val slice = (level: Int) => (in: SlicePort[Bool]) =>
-      new Slice(level, in).result
-    val tree = (0 until shamt.getWidth) map (i => slice(i))
+    val slice = (level: Int) => ((in: SlicePort[Bool]) =>
+      new Slice(level, in).result)
+    val tree = (0 until shamt.getWidth) map slice
 
     (new SliceReducePort(input.toBools, false.B) /: tree)((a, f) => f(a)) match
       { case SliceReducePort(data, reduce) => (Cat(data), reduce) }

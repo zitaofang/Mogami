@@ -2,6 +2,8 @@ package mogami.arithmetic.fp
 
 import chisel3._
 import chisel3.util._
+import mogami.arithmetic.FPPortIn
+import mogami.arithmetic.FPPortOut
 import mogami.arithmetic.integer.CSAUtil
 import mogami.arithmetic.integer.SD4RecoderSC
 import mogami.arithmetic.integer.SD4Recoder2C
@@ -37,11 +39,16 @@ class Square extends Module {
   )
 
   // Tree
-  Cat(io.out_s, io.out_c) := CSAUtil.csa_tree(16)(mat_in)
+  val (s, c) = CSAUtil.csa_tree(16)(mat_in)
+  io.out_s := s
+  io.out_c := c
 }
 
 // The Black box for the LUT
-class CoeffLUT extends BlackBox {
+// The "mode" here is defined as the memory initialization file needed
+// (0 = div_lut, 1 = sqrt_lut, 2 = sqrt_2_lut). See lut-gen/coefflut.v
+// for more info.
+class CoeffLUT(mode: Int) extends BlackBox(Map("MODE" -> mode)) {
   val io = IO(new Bundle{
     val clk = Input(Clock())
     val a = Input(UInt(10.W))
@@ -53,7 +60,7 @@ class CoeffLUT extends BlackBox {
 class DivSqrtSeedMantissa extends Module {
   val io = IO(new Bundle{
     val is_sqrt = Input(Bool())
-    val sqrt_2 = Input(Bool())
+    val sqrt_2 = Input(Bool()) // True if the exponent of sqrt operand is odd
     val in = Input(UInt(52.W))
     val out_s = Output(UInt(30.W))
     val out_c = Output(UInt(30.W))
@@ -62,20 +69,20 @@ class DivSqrtSeedMantissa extends Module {
   // Read the memory (2 cycle delay)
   val div_lut = Module(new CoeffLUT(0))
   div_lut.io.clk := Module.clock
-  div_lut.io.a := in(51, 43)
+  div_lut.io.a := io.in(51, 43)
   val div_mem_out = div_lut.io.spo
   val sqrt_lut = Module(new CoeffLUT(1))
   sqrt_lut.io.clk := Module.clock
-  sqrt_lut.io.a := in(51, 43)
+  sqrt_lut.io.a := io.in(51, 43)
   val sqrt_mem_out = sqrt_lut.io.spo
   val sqrt2_lut = Module(new CoeffLUT(2))
   sqrt2_lut.io.clk := Module.clock
-  sqrt2_lut.io.a := in(51, 43)
+  sqrt2_lut.io.a := io.in(51, 43)
   val sqrt2_mem_out = sqrt2_lut.io.spo
 
   // Select the output
   val is_sqrt_reg = RegNext(RegNext(io.is_sqrt))
-  val sqrt_2_reg = RegNext(RegNext(io.sqrt_2_reg))
+  val sqrt_2_reg = RegNext(RegNext(io.sqrt_2))
   val mem_out = Mux(is_sqrt_reg,
     Mux(sqrt_2_reg, sqrt2_mem_out, sqrt_mem_out),
   div_mem_out)
@@ -91,7 +98,7 @@ class DivSqrtSeedMantissa extends Module {
   // for the LUT)
   val sq_recode = Module(new SD4RecoderSC(16))
   sq_recode.io.in_s := square_out_s
-  sq.recode.io.in_c := square_out_c
+  sq_recode.io.in_c := square_out_c
   val sq_recode_out = RegNext(sq_recode.io.out)
   val sq_recode_cout = RegNext(sq_recode.io.carry_out)
 
@@ -131,7 +138,9 @@ class DivSqrtSeedMantissa extends Module {
   // 2-bit shift on C1 (which means the C1 offset "01" in the "00" entry above
   // needs to be inverted).
   val additional_state = io.is_sqrt & io.sqrt_2 & ~mem_out(63, 62).orR
-  val (c2_shamt, c1_shamt) = exp_table(Cat(Cat(io.is_sqrt, io.sqrt_2),
+  val c2_shamt = Wire(UInt(2.W))
+  val c1_shamt = Wire(UInt(2.W))
+  Cat(c2_shamt, c1_shamt) := exp_table(Cat(Cat(io.is_sqrt, io.sqrt_2),
     mem_out(63, 62))) ^ Cat(0.U(2.W), Fill(2, additional_state))
   // Regarding c0: exponent of c0 is almost always 3FE except when the 9 most
   // significant bits are all 0 (which means the divisor is approximately 1),
@@ -154,10 +163,10 @@ class DivSqrtSeedMantissa extends Module {
   val p_head = "b'11".U(2.W) >> c1_shamt
 
   // The function to shift the operand
-  val shift_func = (a, i) => Mux(additional_state,
+  val shift_func = ((a: UInt, i: Int) => Mux(additional_state,
     Cat(Fill(4, (i == 7).B), a),
     SimpleShifter(Cat(a, 0.U(4.W)), c2_shamt, true.B, (i == 7).B)
-  )
+  ))
   // Shift
   // Here, the propagation tail is shifted in
   val raw_pos_pp =
@@ -184,7 +193,8 @@ class DivSqrtSeedMantissa extends Module {
   val (res_s, res_c) = CSAUtil.csa(56)(int_s(56, 0), int_c(56, 0), ~neg_c, true.B)
 
   // Trim the result
-  Cat(out_s, out_c) := (res_s(55, 26), res_c(55, 26))
+  io.out_s := res_s(55, 26)
+  io.out_c := res_c(55, 26)
 }
 
 // The component exposed to the pipeline
@@ -199,8 +209,11 @@ class DivSqrtSeed extends Module {
 
   // Mantissa computation, takes 3 cycle
   val core = Module(new DivSqrtSeedMantissa())
+  // a placeholder for exponent LSB, filled below (it is available in the first
+  // register stage immediately)
+  val sqrt_exp_2 = Wire(Bool())
   core.io.is_sqrt := io.in.flags(0)
-  core.io.sqrt_2 := io.in.
+  core.io.sqrt_2 := sqrt_exp_2
   core.io.in := Cat(true.B, io.in.operand2(51, 0))
 
   // Sign, exponent, and special value calculation
@@ -215,6 +228,7 @@ class DivSqrtSeed extends Module {
   val op1_exp = ExtractExp(io.in.flags(1), io.in.operand1, io.in.operand1_fp)
   val op2_exp = ExtractExp(io.in.flags(1), io.in.operand2, io.in.operand2_fp)
   val div_exp_core = Module(new ExpAdder())
+  sqrt_exp_2 := op1_exp(0)
   div_exp_core.io.is_double := io.in.flags(1)
   div_exp_core.io.subtract := true.B
   div_exp_core.io.a := op1_exp
@@ -268,7 +282,7 @@ class DivSqrtSeed extends Module {
   // =============== Stage 2 ===================
 
   // Encode exponent
-  val encode_result = ExpEncode(exp_res)
+  val encode_result = EncodeExp(exp_res)
   val out_exp = RegNext(encode_result.exp_field)
   // Encode flags
   val flags_result = RegNext(EncodeExp(
