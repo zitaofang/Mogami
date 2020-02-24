@@ -2,6 +2,7 @@ package mogami.arithmetic.fp
 
 import chisel3._
 import chisel3.util._
+import mogami.arithmetic.ComparatorBlock
 
 // Detect if a FP is an NaN.
 object IsNaN {
@@ -79,10 +80,10 @@ object EncodeExp {
     res.denorm := in(11) & ((~in(10) & ~lower_uf) | ~in(9, 0).orR)
 
     // Encoding exponent
-    res.exp_field := in(10, 0)
-      ^ Cat(true.B, Fill(2, is_double), 0.U(7.W)) // Filp sign
-      & Fill(11, ~(res.underflow & res.denorm)) // Clear all bits if underflow/denorm
-      | Fill(11, res.overflow) // Set all bits if overflow
+    res.exp_field := in(10, 0) ^
+      Cat(true.B, Fill(2, is_double), 0.U(7.W)) & // Filp sign
+      Fill(11, ~(res.underflow & res.denorm)) | // Clear all bits if underflow/denorm
+      Fill(11, res.overflow) // Set all bits if overflow
     res.flag_exp := ~in(5, 0) & Fill(6, res.denorm) | Cat(is_double, 0.U(5.W))
   }
 }

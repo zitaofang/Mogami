@@ -29,12 +29,14 @@ object CSAUtil {
   // The csa tree: keep applying csa to compress data until two are left.
   // It is a Wallace Tree, but I will leave the width specification to
   // the optimizer.
-  def csa_tree(width: Int)(in_arr: List[UInt]): Tuple2[UInt, UInt] = {
-    // A simple array-to-tuple function ("false" is the carry in, not used here)
-    val to_tuple = (arr: List[UInt]) => arr match { case List(a, b, c, _*) => (a, b, c, false.B) }
+  def csa_tree(width: Int)(in_arr: Seq[UInt]): Tuple2[UInt, UInt] = {
+    // A simple sequence-to-tuple function ("false" is the carry in, not used here)
+    val to_tuple = (arr: Seq[UInt]) => arr.toList match { case List(a, b, c, _*) => (a, b, c, false.B) }
+    // Another simple tuple-to-sequence function (for Tuple2)
+    val to_seq = (tup: Tuple2[UInt, UInt]) => List(tup._1, tup._2)
     // The internal function for folding
     @scala.annotation.tailrec
-    def csa_slice(from_right: Boolean, in_array: List[UInt]) = {
+    def csa_slice(from_right: Boolean, in_array: Seq[UInt]): Seq[UInt] = {
       if (in_array.length <= 2)
         in_array
       else {
@@ -46,8 +48,7 @@ object CSAUtil {
         val tail_slice =
           if (from_right) in_array.slice(3 * comp_num, len)
           else in_array.slice(0, len - 3 * comp_num)
-        val out_array = (0 until comp_num) map (csa(width) _).
-          tupled(to_tuple(slice_sel(_)))
+        val out_array = ((0 until comp_num) flatMap (i => to_seq((csa(width) _).tupled(to_tuple(slice_sel(i))))))
 
         csa_slice(!from_right,
           if (from_right) out_array ++ tail_slice

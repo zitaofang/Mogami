@@ -170,9 +170,9 @@ class DivSqrtSeedMantissa extends Module {
   // Shift
   // Here, the propagation tail is shifted in
   val raw_pos_pp =
-    ((c2_pp zip (0 until 8)) map ((a, b) => Cat(0.U(19.W),
+    ((c2_pp zip (0 until 8)) map (_ match { case (a, b) => Cat(0.U(19.W),
       shift_func(a, b),
-    0.U(6.U)))) ++
+    0.U(6.U))})) ++
     Cat(SimpleShifter(c0_pp, c0_shamt, true.B, false.B), 0.U(26.W))
   val neg_pp =
     (c1_pp map (a => Cat(0.U(10.W),

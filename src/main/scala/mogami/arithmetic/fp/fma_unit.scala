@@ -2,6 +2,8 @@ package mogami.arithmetic.fp
 
 import chisel3._
 import chisel3.util._
+import mogami.arithmetic.FPPortIn
+import mogami.arithmetic.FPPortOut
 
 // The complete FMA unit exposed to the pipeline, with multiple entrances.
 class FMA extends Module {

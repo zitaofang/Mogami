@@ -2,6 +2,7 @@ package mogami.arithmetic.integer
 
 import chisel3._
 import chisel3.util._
+import scala.math.pow
 
 // Basic lookahead block
 class Lookahead extends Module {
@@ -45,30 +46,30 @@ class Lookahead extends Module {
 
 object Lookahead {
   // The input and output structure
-  class Input extends Bundle {
+  class LInput extends Bundle {
     val g = UInt(4.W)
     val p = UInt(4.W)
   }
-  object Input {
+  object LInput {
     def apply(g: UInt, p: UInt) = {
-      val res = Wire(new Input())
+      val res = Wire(new LInput())
       res.g := g
       res.p := p
       res
     }
   }
-  class Output extends Bundle {
+  class LOutput extends Bundle {
     val g = Bool()
     val p = Bool()
     val c0 = UInt(4.W)
     val c1 = UInt(4.W)
   }
 
-  def apply(in: Input) = {
-    val out = Wire(new Output())
+  def apply(in: LInput) = {
+    val out = Wire(new LOutput())
     val core = Module(new Lookahead())
-    core.in.g := in.g
-    core.in.p := in.p
+    core.io.g := in.g
+    core.io.p := in.p
     out.g := core.io.g_out
     out.p := core.io.p_out
     out.c0 := core.io.c0_out
@@ -94,9 +95,9 @@ class CompoundAdder(level: Int) extends Module {
   })
 
   // propagate, generate, and sum
-  val s = a ^ b
-  val g = a & b
-  val p = a | b
+  val s = io.a ^ io.b
+  val g = io.a & io.b
+  val p = io.a | io.b
 
   // lookahead level
   // exp: 4^exp = (# of lookahead block)
@@ -111,36 +112,35 @@ class CompoundAdder(level: Int) extends Module {
     g_split := g
     val p_split = Vec(num, UInt(4.W))
     p_split := p
-    val seq = (0 until num) map Lookahead.Input(g_split(_), p_split(_))
-    val res = seq map Lookhead(_)
+    val seq = (0 until num) map (i => Lookahead.LInput(g_split(i), p_split(i)))
+    val res = seq map Lookahead.apply
 
-    val gout = Cat(res map _.g)
-    val pout = Cat(res map _.p)
-    val cout = c :+ (res map _.c0, res map _.c1)
+    val gout = Cat(res map (r => r.g))
+    val pout = Cat(res map (r => r.p))
+    val cout = c :+ (Cat(res map (r => r.c0)), Cat(res map (r => r.c1)))
 
     (gout, pout, cout)
   }
-  val slice_fn = lookahead_slice _
-  val slice_seq = (level - 1 to 0 by -1) map slice_fn(_)
+  val slice_seq = (level - 1 to 0 by -1) map (i => lookahead_slice(i)(_, _, _))
   val (g_res, p_res, lookahead_res) =
-    ((g, p, List()) /: slice_seq)(x, f => f.tupled(x))
+    ((g, p, List[Tuple2[UInt, UInt]]().asInstanceOf[Seq[Tuple2[UInt, UInt]]]) /: slice_seq)((x, f) => f.tupled(x))
 
   // Select and merge
-  private def carry_select(c: Tuple2[UInt, UInt], seq: Seq[Tuple2[UInt, UInt]]) = seq match {
+  private def carry_select(c: Tuple2[UInt, UInt], seq: Seq[Tuple2[UInt, UInt]]): Tuple2[UInt, UInt] = seq match {
     case Nil => c
     case (c0, c1) +: tail => carry_select(
       (
-        Cat((c._1.toBool(), c0, c1).zipped map (_ match { case (c, a, b) => Mux(c, b, a) })),
-        Cat((c._2.toBool(), c0, c1).zipped map (_ match { case (c, a, b) => Mux(c, b, a) }))
+        Cat((c._1.toBools(), c0, c1).zipped map (_ match { case (c, a, b) => Mux(c, b, a) })),
+        Cat((c._2.toBools(), c0, c1).zipped map (_ match { case (c, a, b) => Mux(c, b, a) }))
       ),
       tail
     )
   }
   val sel_res = carry_select((false.B, true.B), lookahead_res)
   // Return
-  Cat(io.s0, io.s1) := (sel_res._1 ^ s, sel_res._2 ^ s)
-  Cat(io.g, io.p) := (g_out, p_out)
-  Cat(io.sign_c(1), io.sign_c(0)) := (sel_res._1(63), sel_res._2(63))
+  Cat(io.s0, io.s1) := Cat(sel_res._1 ^ s, sel_res._2 ^ s)
+  Cat(io.g, io.p) := Cat(g_res, p_res)
+  Cat(io.sign_c(1), io.sign_c(0)) := Cat(sel_res._1(63), sel_res._2(63))
 }
 
 // The regular lookahead adder, implemented with compound adder
@@ -159,7 +159,7 @@ class Adder(level: Int) extends Module {
   val core = Module(new CompoundAdder(level))
   core.io.a := io.a
   core.io.b := io.b
-  io.s := Mux(cin, core.io.s1, core.io.s0)
+  io.s := Mux(io.cin, core.io.s1, core.io.s0)
   io.cout := core.io.g | core.io.p & io.cin
-  io.sign_c := Mux(cin, core.io.sign_c(1), core.io.sign_c(0))
+  io.sign_c := Mux(io.cin, core.io.sign_c(1), core.io.sign_c(0))
 }

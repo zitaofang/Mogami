@@ -122,7 +122,7 @@ class SD4Recoder2C(width: Int) extends Module {
   })
 
   // Create component, connect carry bits
-  val comp_arr = (0 until comp_num) map Module(new SD4Recoder2CCell())
+  val comp_arr = List.fill(comp_num)(Module(new SD4Recoder2CCell()))
   val comp_carry = comp_arr map (_.io.carry_out)
   for (i <- 1 until comp_num) {
     comp_arr(i).io.carry_in := comp_carry(i - 1)
@@ -132,7 +132,7 @@ class SD4Recoder2C(width: Int) extends Module {
 
   // Connect input and output
   val in_spliter = Wire(Vec(comp_num, UInt(2.W)))
-  in_spliter := in
+  in_spliter := io.in
   for (i <- 0 until comp_num) {
     comp_arr(i).io.in := in_spliter(i)
     io.out(i) := comp_arr(i).io.out
@@ -151,7 +151,7 @@ class SD4RecoderSC(width: Int) extends Module {
   })
 
   // Create component, connect carry bits
-  val comp_arr = (0 until comp_num) map Module(new SD4RecoderCSCell())
+  val comp_arr = List.fill(comp_num)(Module(new SD4RecoderCSCell()))
   val comp_carry = comp_arr map (_.io.carry_out)
   for (i <- 1 until comp_num) {
     comp_arr(i).io.carry_in := comp_carry(i - 1)
@@ -164,9 +164,10 @@ class SD4RecoderSC(width: Int) extends Module {
   // the right (for group 0, that bit is 0), I create another arry to hold these.
   val aug_s = Cat(io.in_s, false.B)
   val aug_c = Cat(io.in_c, false.B)
-  val in_s_spliter = (0 until comp_num) map ((i: Int) => aug_s(2 * i + 2, 2 * i))
-  val in_c_spliter = (0 until comp_num) map ((i: Int) => aug_c(2 * i + 2, 2 * i))
-  in_c_spliter := in
+  val in_s_spliter = VecInit((0 until comp_num) map ((i: Int) => aug_s(2 * i + 2, 2 * i)))
+  val in_c_spliter = VecInit((0 until comp_num) map ((i: Int) => aug_c(2 * i + 2, 2 * i)))
+  in_s_spliter := io.in_s
+  in_c_spliter := io.in_c
   for (i <- 0 until comp_num) {
     comp_arr(i).io.in_s := in_s_spliter(i)
     comp_arr(i).io.in_c := in_c_spliter(i)

@@ -9,6 +9,10 @@ import mogami.util.SlicePort
 import mogami.util.ShiftOutReduce
 import mogami.util.SliceReducePort
 import mogami.util.SliceSimplePort
+import mogami.arithmetic.FUPortIn
+import mogami.arithmetic.FUPortOut
+import mogami.arithmetic.FPPortIn
+import mogami.arithmetic.FPPortOut
 
 class Shifter extends Module {
   val io = IO(new Bundle{
@@ -30,8 +34,7 @@ class Shifter extends Module {
   val tree = (0 until 6) map slice
 
   io.output.output1 :=
-    (new SliceSimplePort(io.input.operand1.toBool()s) /: tree)
-    (a, f => f(a)).data
+    (new SliceSimplePort(io.input.operand1.toBools()) /: tree)((a, f) => f(a))
   io.output.output1_en := io.input.enable
   io.output.output2 := 0.U
   io.output.output2_en := false.B

@@ -18,7 +18,7 @@ object PPGenerate {
       p ^ Fill(2 + b_width, s.sign) & Fill(2 + b_width, s.nonzero)
     })
     val compensate_add = Fill(b_width, compensate) & a
-    val neg_carry = (p => Cat(Cat(b.slice(0, b_width - 2).reverse map p.sign),
+    val neg_carry = (p => Cat(Cat(b.slice(0, b_width - 2).reverse map _.sign),
       b(b_width).sign))
 
     // Arrange PP in the matrix
@@ -41,7 +41,7 @@ object PPGenerate {
         0.U((i * 2).W) // Right padding
       ))
     // Remove extra bit and return
-    pp_array map _(out_width + 1, 2)
+    pp_array map (f => f(out_width + 1, 2))
   }
 }
 
@@ -49,7 +49,7 @@ object PPGenerate {
 class Multiplier extends Module {
   val io = IO(new Bundle{
     val a = Input(UInt(64.W))
-    val b = Input(Vec(32, SD4Port))
+    val b = Input(Vec(32, new SD4Port()))
     val compensate = Input(Bool())
     val s = Output(UInt(128.W))
     val c = Output(UInt(128.W))
@@ -58,5 +58,7 @@ class Multiplier extends Module {
   val pp = PPGenerate(io.a, io.b, io.compensate)
 
   // The Wallace tree
-  Cat(io.s, io.c) := CSAUtil.csa_tree(128)(pp)
+  val (s, c) = CSAUtil.csa_tree(128)(pp)
+  io.s := s
+  io.c := c
 }
