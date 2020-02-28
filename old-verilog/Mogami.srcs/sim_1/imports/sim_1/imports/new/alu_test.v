@@ -95,7 +95,7 @@ module alu_test(
     generate
         genvar i;
         for (i = 0; i < 12; i = i + 1)
-        begin: fuck
+        begin: testing
             assign pos[2 * i + 1] = pos_2[i];
             assign neg[2 * i + 1] = neg_2[i];
             assign pos[2 * i] = neg_1[i];

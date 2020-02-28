@@ -29,8 +29,8 @@ class PackDependency(instIndex: UInt => UInt) extends Module {
   def compareRead(index: Int, read_reg: UInt) = {
     // If any of equal_reg is true, the current operand depends on
     // some previous instructions
-    val equal_reg = Cat(for (i <- 0 until index)
-      read_reg === io.write(i).bits & io.write(i).valid)
+    val equal_reg = Cat((0 until index) map (i =>
+      read_reg === io.write(i).bits & io.write(i).valid))
     // The instruction it is depends on is the last instruction that produce
     // the requested register; use priority encode to get it
     val enc_out = PriorityEncoder(Cat(0.U((4 - index).W), equal_reg))
@@ -39,13 +39,13 @@ class PackDependency(instIndex: UInt => UInt) extends Module {
 
   // Connect in and out
   def assignOut(index: Int, reg_ind: Int) = {
-    val read_in = read(index)(reg_ind)
+    val read_in = io.read(index)(reg_ind)
     val (instOffset, dependent) = compareRead(index, read_in.bits.tag(5, 0))
     // If it is a register operand and dependent on other inst, use the
     // inst#; otherwise, use the current operand
     Mux(read_in.valid & (dependent | ~read_in.bits.present),
       DecodeOperand(instIndex(instOffset), false.B),
-      read(index)(reg_ind)
+      io.read(index)(reg_ind)
     )
   }
   for (j <- 0 until 3)
@@ -54,11 +54,11 @@ class PackDependency(instIndex: UInt => UInt) extends Module {
     io.read_out(i)(j) := assignOut(i, j)
 
   // If the write address is 0, or it is invalid, then ignore it
-  val write_en = io.write map _.orR
+  val write_en = io.write map (a => a.bits.orR)
   // Compare and resolve WAW hazard by masking unused write to rename table
   // (Note that the results are still written to ROB in case of traps)
   def compareWrite(index: Int, write_reg: UInt) = {
-    val equal_reg = Cat((index until 3) map write_reg === io.write(_).bits)
+    val equal_reg = Cat((index until 3) map (a => write_reg === io.write(a).bits))
     equal_reg.orR
   }
   for (i <- 0 until 3)

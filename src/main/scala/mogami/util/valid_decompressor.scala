@@ -2,6 +2,8 @@ package mogami.util
 
 import chisel3._
 import chisel3.util._
+import scala.math.pow
+import mogami.MathUtil
 
 // Valid data decompression.
 // When data is being compressed, the original index will be stored as
@@ -10,6 +12,8 @@ import chisel3.util._
 // shifter, a compressed data pack can be reordered and decompressed.
 
 class DecompressValid[T <: Data](width_exp: Int, t: T) extends Module {
+  val width = pow(2, width_exp)
+
   val io = IO(new Bundle() {
     val in = Vec(width, Flipped(Valid(t)))
     val in_index = Vec(width, Input(UInt(width_exp.W)))
@@ -69,7 +73,7 @@ class DecompressValid[T <: Data](width_exp: Int, t: T) extends Module {
 object DecompressValid {
   def apply[T <: Data](in: Vec[Valid[T]], index: Vec[UInt], t: T) = {
     // Pad
-    val level = log2ceil(in.length)
+    val level = MathUtil.log2ceil(in.length)
     val padded_in = in.padTo(math.pow(2, level).toInt, Wire(Valid(t)))
     val padded_index = in.padTo(math.pow(2, level).toInt,
       0.U(index(0).getWidth.W))

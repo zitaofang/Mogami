@@ -2,6 +2,7 @@ package mogami.util
 
 import chisel3._
 import chisel3.util._
+import mogami.MathUtil
 
 // Valid data compression.
 // A valid data compressor takes an n-size vector where n must be power of
@@ -51,7 +52,7 @@ class CompressValid[T <: Data](width_exp: Int, t: T) extends Module {
 
     // An empty block
     val empty_t = 0.U(t.getWidth).asTypeof(t)
-    val empty_block = List().padTo(in_blk_width, (false.B, empty_t))
+    val empty_block = List.fill(in_blk_width)((false.B, empty_t))
 
     // Split upper and lower half
     val grouped = in group 2
@@ -89,17 +90,17 @@ class CompressValid[T <: Data](width_exp: Int, t: T) extends Module {
 object CompressValid {
   def apply[T <: Data](in: Vec[Valid[T]], t: T) = {
     // Pad
-    val level = log2ceil(in.length)
+    val level = MathUtil.log2ceil(in.length)
     val padded_in = in.padTo(math.pow(2, level).toInt, Wire(Valid(t)))
 
-    val core = Module(new CompressValid(log2floor(in.length), t))
+    val core = Module(new CompressValid(MathUtil.og2floor(in.length), t))
     core.io.in <> in
 
     core.io.out take in.length
   }
   // A wrapper applied to tuple of valid bit and data bundle
   def apply[T <: Data](in: Seq[(Bool, T)], t: T) = {
-    val packed_in = padded_in map (i => {
+    val packed_in = in map (i => {
       val pack = Wire(Valid(t))
       pack.valid := i._1
       pack.bits := i._2

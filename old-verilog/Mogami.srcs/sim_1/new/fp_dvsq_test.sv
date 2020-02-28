@@ -782,22 +782,22 @@ module acc_tree_test(
             
             // Debugging facility for 3:2 CSA
             /*for (int i = 0; i < 2; i++)
-            begin: fuck
+            begin: testing
                 automatic bit[56:0] v1 = l2_big_matrix[3 * i] + l2_big_matrix[3 * i + 1] + l2_big_matrix[3 * i + 2];
                 automatic bit[56:0] v2 = l3_big_matrix[2 * i] + l3_big_matrix[2 * i + 1];
                 if (v1 != v2) begin
-                    $write("fuck %d! v1: %x, v2:%x\n", i, v1, v2);
+                    $write("testing %d! v1: %x, v2:%x\n", i, v1, v2);
                     $write("in: %x, %x, %x; out: %x, %x\n", l2_big_matrix[3 * i], l2_big_matrix[3 * i + 1], l2_big_matrix[3 * i + 2]
                         , l3_big_matrix[2 * i], l3_big_matrix[2 * i + 1]);
                 end
             end*/
             // Debugging facility for 4:2 CSA
             /*for (int i = 0; i < 1; i++)
-            begin: shit
+            begin: testing2
                 automatic bit[56:0] v1 = l3_big_matrix[3 * i] + l3_big_matrix[3 * i + 1] + l3_big_matrix[3 * i + 2] + l3_big_matrix[3 * i + 3];
                 automatic bit[56:0] v2 = l4_big_matrix[2 * i] + l4_big_matrix[2 * i + 1];
                 if (v1 != v2) begin
-                    $write("shit %d! v1: %x, v2:%x\n", i, v1, v2);
+                    $write("testing2 %d! v1: %x, v2:%x\n", i, v1, v2);
                     $write("in: %x, %x, %x, %x; out: %x, %x\n", l3_big_matrix[3 * i], l3_big_matrix[3 * i + 1], l3_big_matrix[3 * i + 2]
                         , l3_big_matrix[3 * i + 3], l4_big_matrix[2 * i], l4_big_matrix[2 * i + 1]);
                 end

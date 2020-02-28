@@ -34,7 +34,7 @@ module booth_test_cs();
     class carry_save;
         rand bit [15:0] cs_a;
         rand bit [15:0] cs_b;
-        constraint fuck {
+        constraint testing {
             cs_b[0] == 1'b0;
             cs_a[15] == 1'b0;
         }

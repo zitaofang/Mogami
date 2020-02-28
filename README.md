@@ -48,4 +48,9 @@ There are four register banks per CPU, each with 64 entries that can be used as 
 [1] Sollya: an environment for the development of numerical codes.
   S. Chevillard, M. Joldeș and C. Lauter.
   In Mathematical Software - ICMS 2010, pages 28-31, Heidelberg, Germany, September 2010. Springer.
-[2] 
+[2] Pineiro, J-A., and Javier D. Bruguera. "High-speed double-precision computation of reciprocal, division, square root, and inverse square root." IEEE Transactions on Computers 51, no. 12 (2002): 1377-1388.
+[3] Quinnell, Eric, Earl E. Swartzlander, and Carl Lemonds. "Floating-point fused multiply-add architectures." In 2007 Conference Record of the Forty-First Asilomar Conference on Signals, Systems and Computers, pp. 331-337. IEEE, 2007.
+[4] Lyu, Chung Nan, and David W. Matula. "Redundant binary booth recoding." In Proceedings of the 12th Symposium on Computer Arithmetic, pp. 50-57. IEEE, 1995.
+[5] Hennessy, John L., and David A. Patterson. Computer architecture: a quantitative approach. Elsevier, 2011.
+
+In addition to the literature listed above, this project also contains ideas from UC Berkeley's CS152 (Computer Architecture and Engineering) and Stanford's EE486 (Advanced Computer Arithmetic).

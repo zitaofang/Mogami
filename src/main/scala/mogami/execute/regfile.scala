@@ -2,6 +2,9 @@ package mogami.execute
 
 import chisel3._
 import chisel3.util._
+import mogami.FillZero
+import mogami.util.CompressValid
+import mogami.util.DecompressValid
 
 // The data bundle of reg read address in internal representation.
 // It contains a index field so that it can be unfolded after
@@ -20,16 +23,18 @@ object ReadAddr {
   def empty = apply(0.U(6.W), 0.U(4.W))
 }
 // The definition of queue entry of the read request queue
-class QueueEntry extends Valid[Vec[ReadAddr]]
-object QueueEntry {
-  def apply() = Valid(Vec(3, new ReadAddr()))
-  def apply(valid: Bool, bits: Vec[ReadAddr]) = {
-    val res = Valid(Vec(3, new ReadAddr()))
-    res.valid := valid
-    res.bits := bits
-    res
+object RegFileUtil {
+  type QueueEntry = Valid[Vec[ReadAddr]]
+  object QueueEntry {
+    def apply() = Valid(Vec(3, new ReadAddr()))
+    def apply(valid: Bool, bits: Vec[ReadAddr]) = {
+      val res = Valid(Vec(3, new ReadAddr()))
+      res.valid := valid
+      res.bits := bits
+      res
+    }
+    def empty = apply(false.B, VecInit(List.fill(3)(ReadAddr.empty)))
   }
-  def empty = apply(false.B, VecInit(List().padTo(3, ReadAddr.empty)))
 }
 
 // =======================
@@ -52,12 +57,12 @@ class RegFileRAM extends Module {
     })
   })
 
-  val mems = (0 until 4) map SyncReadMem(64, UInt(72.W))
-  (mems zip io.read_addr zip io.read_data) map ((m, r, o) => {
+  val mems = List.fill(4)(SyncReadMem(64, UInt(72.W)))
+  (mems zip io.read_addr zip io.read_data) map (_ match { case ((m, r), o) => {
     // Set up register read
     // Special encoding of Operand() is used. See the top of the page
     // for comments.
-    Cat(o.value, o.fp_flags) :=
+    Cat(o.value, o.fp_flag) :=
       m.read(Cat(io.read_bank, r.value(5, 0)), r.present)
 
     // Fill in the rest of the structure
@@ -67,8 +72,8 @@ class RegFileRAM extends Module {
     // =======================================
 
     // Write.
-    m.write(Cat(io.write.bank, io.write.addr), io.write.data)
-  })
+    m.write(Cat(io.write.bits.bank, io.write.bits.addr), io.write.bits.data)
+  }})
 }
 // The bank control circuit
 class RegFileBank(i: Int) extends Module {
@@ -93,9 +98,9 @@ class RegFileBank(i: Int) extends Module {
   // Read address control
 
   // Concatenate read_in into one-dimension array
-  val read_in_cat = (io.read_in flatMap _).zipWithIndex
+  val read_in_cat = (io.read_in flatMap (a => a)).zipWithIndex
 
-  val filtered = read_in_cat map ((req, ind) => {
+  val filtered = read_in_cat map (_ match { case (req, ind) => {
     // To keep the interface simple, I will still use Operand class
     // here, but there will be some modification:
     // 1. "present" bit is now the valid bits.
@@ -121,7 +126,7 @@ class RegFileBank(i: Int) extends Module {
 
     // Output, with a copy of valid bit
     (valid, filtered_val)
-  })
+  }})
 
   // Compress accesses
   val compress_out = CompressValid(filtered, FillZero(new Operand()))
@@ -151,7 +156,7 @@ class RegFileBank(i: Int) extends Module {
     addr_queue(0) := addr_queue(1)
   } .otherwise {
     // Put the compressed data into the queue
-    (addr_queue zip grouped_compressed) map _ := _
+    (addr_queue zip grouped_compressed) map ((a, b) => a := b)
   }
 
   // Mask bit: when a read request that is served within 1 cycle is
@@ -159,7 +164,7 @@ class RegFileBank(i: Int) extends Module {
   // not be read.
   // The mask should only be updated if the queue is filled with new
   // data.
-  val mask_bit = RegEnable(grouped_compressed map _.valid,
+  val mask_bit = RegEnable(grouped_compressed map (b => b.valid),
     io.global_ready)
   // Data queue pointer: mark the next entry of data queue after the
   // RAM is read.
@@ -174,10 +179,10 @@ class RegFileBank(i: Int) extends Module {
   // RAM read
 
   // connect addresses to the RAM
-  (core.io.read_addr zip addr_queue(0)) map ((ra, q) => {
+  (core.io.read_addr zip addr_queue(0)) map (_ match { case (ra, q) => {
     ra.valid := q.valid
     ra.bits := q.bits
-  })
+  }})
 
   // ===========================================
   // Read data control
@@ -185,10 +190,10 @@ class RegFileBank(i: Int) extends Module {
   // The read data queue
   // The output of RAM will be put into the entry the pointer pointing to
   val data_queue = (0 until 3) map
-    RegEnable(core.io.read_data, data_queue_p(_))
+    (i => RegEnable(core.io.read_data, data_queue_p(i)))
   // Decompress the output based on the index in the tag field
   // First, mask the tag field, and extract index
-  val (masked_data, data_index) = ((data_queue flatMap _) map (c => {
+  val (masked_data, data_index) = ((data_queue flatMap (a => a)) map (c => {
     val md = Wire(Valid(new Operand()))
     val id = Wire(UInt(4.W))
     md.valid := c.valid
@@ -202,7 +207,7 @@ class RegFileBank(i: Int) extends Module {
   // Then, run through decompressor
   val decompressed = DecompressValid(masked_data, data_index)
   // and assign them to the io ports
-  io.read_out <> RegNext(VecInit((decompressed grouped 4) map VecInit(_)))
+  io.read_out <> RegNext(VecInit((decompressed grouped 4) map VecInit.apply))
 
   // ==========================================
   // Write control
@@ -220,17 +225,17 @@ class RegFile extends Module {
     val write = Vec(4, Flipped(Valid(new RegWritePack())))
   })
 
-  val banks = (0 until 4) map Module(new RegFileBank())
+  val banks = List.fill(4)(Module(new RegFileBank()))
 
   // A global ready bit
   val local_ready = Wire(Vec(4, Bool()))
   val ready = local_ready.orR
   io.ready := ready
   // Connect ready bits
-  (bank zip local_ready) map ((b, r) => {
+  (bank zip local_ready) map (_ match { case (b, r) => {
     r := b.io.local_ready
     b.io.global_ready := ready
-  })
+  }})
 
   // Connect the read ports
   val bank_read_out = banks map (b => {
@@ -247,7 +252,7 @@ class RegFile extends Module {
     Mux(read_en, FillZero(Valid(new Operand())), in)
   })
   // Delay the masked input until the operands from the RAM are ready
-  val delayed_present_in = present_in map Pipe(ready, _, 3)
+  val delayed_present_in = present_in map (p => Pipe(ready, p, 3))
   // Now, if the entry in present_in is valid, use the current value
   // otherwise, select the corresponding register read output
   for (i <- 0 until 12) {

@@ -2,19 +2,24 @@ package mogami
 
 import chisel3._
 import chisel3.util._
+import scala.math.getExponent
+
+// Math utility functions
+object MathUtil{
+  def log2floor(c: Int) = getExponent(c.toDouble)
+  def log2ceil(c: Int) = getExponent((c - 1).toDouble) + 1
+}
 
 // Multi-level mux
 object MultiMux {
   private def array_mux(ctl: Bool, input: Seq[Data]) =
     Mux(ctl, input(1), input(0))
-  private def reduce_mux_slice(ctl: Bool, input: Seq[Data]) =
+  private def reduce_mux_slice(input: Seq[Data], ctl: Bool) =
     (0 until input.length / 2) map (
       (i: Int) => Mux(ctl, input(input.length / 2 + i), input(i))
     )
-  def apply (ctl: UInt, input: Seq[Data]) =
-    ((0 until log2Floor(ctl.getWidth)) foldLeft(input) (
-      (ctl_b: UInt, input_slice: Seq[Data]) => reduce_mux_slice(ctl_b, input_slice)
-    ))
+  def apply(ctl: UInt, input: Seq[Data]) =
+    (input /: ctl.toBools) (reduce_mux_slice)(0)
 }
 
 // common type for carry-save data
@@ -43,7 +48,7 @@ object QuickPlusOne {
 object QuickIncrementer {
   def apply(a: UInt, enable: Bool, decrement: Bool) = {
     val width = a.getWidth
-    QuickPlusOne(Fill(width, decrement) ^ a) ^ Fill(width, decrement)
+    QuickPlusOne(Fill(width, decrement) ^ a, true.B) ^ Fill(width, decrement)
   }
 }
 
@@ -62,7 +67,7 @@ object MemReadIO {
 // The memory use this port as-is; client flips it
 class MemWriteIO[T <: Data](addr_w: Int, data_type: T) extends Bundle {
   val addr = UInt(addr_w.W)
-  val data = T
+  val data = data_type
 }
 object MemWriteIO {
   def apply[T <: Data](addr_w: Int, data_type: T) =
@@ -72,10 +77,7 @@ object MemWriteIO {
 // Fill a data bundle with 0
 object FillZero {
   def apply[T <: Data](gen: T) = {
-    val zero = 0.U(gen.getWidth.W)
-    val ret = Wire(t)
-    ret := zero
-    ret
+    0.U(gen.getWidth.W)
   }
 }
 

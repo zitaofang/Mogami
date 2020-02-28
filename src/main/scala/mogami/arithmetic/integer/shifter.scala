@@ -59,7 +59,7 @@ object SimpleShifter {
           new Slice(level, in).result)
         val tree = (0 until shamt.getWidth) map slice
 
-        Cat((new SliceSimplePort(input.toBools) /: tree)((a, f) => f(a)).data)
+        Cat(((new SliceSimplePort(input.toBools) /: tree)((a, f) => f(a))).data)
     }
 }
 

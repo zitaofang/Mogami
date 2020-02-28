@@ -29,7 +29,7 @@ class ROBBank(num: Int) extends Module {
     val commit = Irrevocable(new ROBLine())
 
     // Instruction completion
-    val completion = Vec(4, Flipped(Vaild(new ROBCompletePack())))
+    val completion = Vec(4, Flipped(Valid(new ROBCompletePack())))
 
     // Report to the Controller that the instruction in this bank raise an
     // exception
@@ -134,7 +134,7 @@ class ROB extends Module {
     val dispatch = Vec(4, Flipped(Irrevocable(new ROBLine())))
     val inst_no = Vec(4, Output(UInt(8.W)))
     val commit = Vec(4, Irrevocable(new ROBLine()))
-    val completion = Vec(4, Flipped(Vaild(new ROBCompletePack())))
+    val completion = Vec(4, Flipped(Valid(new ROBCompletePack())))
 
     // Pulling this pin to high will trigger a reset to flush the pipeline
     val exception = Output(Bool())

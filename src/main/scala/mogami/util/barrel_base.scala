@@ -66,8 +66,8 @@ abstract class ShifterSlice[T] extends BaseBarrelSlice[T] {
   def left_in_ctr: T
   def right_in_ctr: T
 
-  override def right_in_blk = List().padTo(block_size, right_in_ctr)
-  override def left_in_blk = List().padTo(block_size, left_in_ctr)
+  override def right_in_blk = List.fill(block_size)(right_in_ctr)
+  override def left_in_blk = List.fill(block_size)(left_in_ctr)
 }
 
 // The rotator class
@@ -86,7 +86,7 @@ trait ShiftOutReduce[T] {
   def reduce_func: (T, T) => T
   // =======================
   val reduce_in = in match { case SliceReducePort(_, r) => r }
-  val reduce_block = List().padTo(block_size, reduce_ctr)
+  val reduce_block = List.fill(block_size)(reduce_ctr)
   // =======================
   val reduce_out = (reduce_in /: reduce_block)(reduce_func)
   override def result = new SliceReducePort(this.asInstanceOf[ShifterSlice[T]].result.data, reduce_out)

@@ -51,7 +51,7 @@ class FreeList extends Module {
   })
 
   // Simply connect all the ports to the banks
-  val banks = (0 until 4) map Module(new FreeListBank())
+  val banks = List.fill(4)(Module(new FreeListBank()))
   for ((bank, index) <- banks.zipWithIndex) {
     bank.io.flush_req <> io.flush_req;
     bank.io.alloc_reg <> io.alloc_reg(index)

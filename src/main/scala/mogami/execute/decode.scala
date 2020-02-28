@@ -6,7 +6,7 @@ import chisel3.util._
 // Classify input instruction format
 // The output is one-hot encoded. The order of bits is: (0 to 6)
 // R, R4, I, S, B, U, J
-// Bit 7 is used to indentify fp output.
+// Bit 7 is used to identify fp output.
 object InstClassify {
   class Result extends Bundle {
 
@@ -24,28 +24,29 @@ class ImmGen extends Module {
     val imm = Output(UInt(32.W))
   })
   // Control bits
-  val bj = 0 // B + J
-  val b = 0 // B
-  val i = 0 // I
-  val is = 0 // I + S
-  val u = 0 // U
-  val uj = 0 // U + J
+  // TODO fill these placeholder in
+  val bj = false.B // B + J
+  val b = false.B // B
+  val i = false.B // I
+  val is = false.B // I + S
+  val u = false.B // U
+  val uj = false.B // U + J
 
-  imm(4, 0) := Mux(i, io.inst(24, 20), io.inst(11, 7))
-    & Cat(15.U(4.W), bj) // Clear LSB for B-type
-    & Fill(5, u) // Clear lower bits if it is U-type
-  imm(10, 5) := inst(30, 25)
-    & Fill(6, u) // Clear lower bits if it is U-type
-  imm(11) := Mux(bj, io.inst(7), io.inst(31))
-    & u // Clear lower bits if it is U-type
-  imm(12) := Mux(b, io.inst(31), io.inst(12))
-    & ~is // Clear higher bits if it is I- or S-type
-  imm(19, 13) := io.inst(19, 13)
-    & Fill(7, uj) // Clear higher bits if it is not U- or J-type
-  imm(20) := Mux(u, io.inst(20), io.inst(31))
-    & uj // Clear higher bits if it is not U- or J-type
-  imm(31, 21) := io.inst(31, 21)
-    & Fill(11, u) // Clear higher bits if it is not U-type
+  io.imm(4, 0) := Mux(i, io.inst(24, 20), io.inst(11, 7)) &
+    Cat(15.U(4.W), bj) & // Clear LSB for B-type
+    Fill(5, u) // Clear lower bits if it is U-type
+  io.imm(10, 5) := io.inst(30, 25) &
+    Fill(6, u) // Clear lower bits if it is U-type
+  io.imm(11) := Mux(bj, io.inst(7), io.inst(31)) &
+    u // Clear lower bits if it is U-type
+  io.imm(12) := Mux(b, io.inst(31), io.inst(12)) &
+    ~is // Clear higher bits if it is I- or S-type
+  io.imm(19, 13) := io.inst(19, 13) &
+    Fill(7, uj) // Clear higher bits if it is not U- or J-type
+  io.imm(20) := Mux(u, io.inst(20), io.inst(31)) &
+    uj // Clear higher bits if it is not U- or J-type
+  io.imm(31, 21) := io.inst(31, 21) &
+    Fill(11, u) // Clear higher bits if it is not U-type
 }
 
 // This step separates data and opcode, and generate the immediates.
@@ -79,6 +80,8 @@ class Decode extends Module {
   }
 
   // Connect dst
-  for (i <- 0 until 4)
-    io.dst(i) := Cat(io.in(11, 7)) & Fill(6, ~inst_class(4, 3).orR)
+  for (i <- 0 until 4) {
+    val inst_class = 0.U(8.W) // InstClassify(io.in(i))
+    io.dst(i) := Cat(io.in(i)(11, 7)) & Fill(6, ~inst_class(4, 3).orR)
+  }
 }

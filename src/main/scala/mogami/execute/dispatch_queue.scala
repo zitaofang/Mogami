@@ -1,7 +1,8 @@
-package mogami.util
+package mogami.execute
 
 import chisel3._
 import chisel3.util._
+import mogami.FillZero
 
 // A bank of the instruction queue. A queue has 8 banks.
 class DispatchQueueBank extends Module {
@@ -18,5 +19,5 @@ class DispatchQueueBank extends Module {
 
   // The input has been compressed, so it is guaranteed that the second
   // entry is valid only if the first one is valid.
-  
+
 }
