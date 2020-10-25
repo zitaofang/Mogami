@@ -727,8 +727,8 @@ module acc_tree_test(
             automatic real tree_res = tree_out_to_real(tree_out[0] + tree_out[1]);
             automatic real v1 = tree_out_to_real({19'b0, c2_position_test, 7'b0} + {c0_matrix, 26'b0} - {10'b0, c1_position_test});
             automatic real v2 = x2_sq_to_real(s_r + s_c) * c2_to_real(c2, c2_shift) + c0_to_real(c0, op_not_zero) + x2_to_real(op[42:19]) * c1_to_real(c1, c1_shift);
-            automatic real fuckv1 = tree_out_to_real({19'b0, c2_position_test, 7'b0});
-            automatic real fuckv2 = x2_sq_to_real(s_r + s_c) * c2_to_real(c2, c2_shift);
+            automatic real realv1 = tree_out_to_real({19'b0, c2_position_test, 7'b0});
+            automatic real realv2 = x2_sq_to_real(s_r + s_c) * c2_to_real(c2, c2_shift);
             // Normalize the tree result
             automatic bit [63:0] normalized = {tree_out[0] + tree_out[1], 7'b0};
             verify_table(c2, c1, c0
@@ -750,7 +750,7 @@ module acc_tree_test(
             verify_tree_c0(c0, op_not_zero, {c0_matrix, 26'b0});*/
             
             $write("pair: (%f, %f) = (%x, %x)\n", v1, v2, $realtobits(v1), $realtobits(v2));
-            $write("fuck_pair: (%e, %e) = (%x, %x)\n", fuckv1, fuckv2, $realtobits(fuckv1), $realtobits(fuckv2));
+            $write("real_pair: (%e, %e) = (%x, %x)\n", realv1, realv2, $realtobits(realv1), $realtobits(realv2));
             $write("div reference: (%e, %e) = (%x, %x)\n", v2, 1 / op_real, $realtobits(v2), $realtobits(1 / op_real));
             $write("sqrt reference: (%e, %e) = (%x, %x)\n", v2, 1 / $sqrt(op_real), $realtobits(v2), $realtobits(1 / $sqrt(op_real)));
            
